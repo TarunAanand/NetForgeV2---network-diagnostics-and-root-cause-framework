@@ -1,0 +1,5 @@
+- Configuration is modeled as a frozen dataclass with a `from_env` classmethod that reads values from `os.environ` and raises `ValueError` on missing required fields.
+- Request payloads are validated exclusively through Pydantic `BaseModel` schemas with `Field` constraints and `@model_validator(mode='after')` hooks for cross-field rules.
+- Endpoint handlers delegate all business work to an injected `AgentService` instance created by `make_handler`, keeping HTTP parsing separate from domain logic.
+- Errors raised inside `AgentService` (e.g. `AuthorizationError`, `TargetNotAllowedError`) are caught in the HTTP handler and translated to specific `HTTPStatus` codes rather than propagating as exceptions.
+- Probes are dispatched by matching `ProbeType` enum values against a `TARGETED_PROBES` whitelist before execution, separating safe read-only probes from those requiring explicit target authorization.

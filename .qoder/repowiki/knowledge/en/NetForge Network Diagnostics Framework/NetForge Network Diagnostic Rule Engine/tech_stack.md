@@ -1,0 +1,1 @@
+Python with Pydantic for structured `DiagnosedIssue`/`DiagnosisReport` models; relies on `core.result.DiagnosticStatus`/`Severity` enums shared across the codebase for status and severity semantics.

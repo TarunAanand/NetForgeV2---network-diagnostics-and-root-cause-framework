@@ -1,0 +1,1 @@
+Run with `pytest tests/` from the repository root; tests rely on `tmp_path` fixtures to create isolated `.db` files under `/tmp` and bind servers on random ports (`server_port`).

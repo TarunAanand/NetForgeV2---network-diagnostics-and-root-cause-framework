@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: agent
+title: NetForge Remote Agent HTTP Service
+scope:
+    - agent/
+source_files: []
+depends_on: []
+related_to:
+    - path: controller
+    - path: tests

@@ -1,0 +1,5 @@
+- Domain-specific KPIs are implemented as pure functions inside `core/metrics/<domain>.py` and re-exported via `core/metrics/__init__.py` rather than imported directly from leaf modules.
+- Shared data contracts use Pydantic `BaseModel` with typed `Field(default_factory=...)` for mutable defaults (lists/dicts) and `Enum` subclasses for constrained string fields such as status and severity.
+- Validation logic is centralized in Pydantic validators: `model_validator(mode='after')` derives confidence from evidence quality, and `field_validator` enforces timezone-aware timestamps on the remote envelope.
+- Each metric function guards against invalid inputs (zero/negative durations, empty sample lists, None speeds) by returning safe defaults (0.0 or None) instead of raising.
+- Aggregation utilities like `DiagnosticEngine` operate immutably on injected collections of `DiagnosticResult` and expose read-only summary methods (`summarize`, `find_failures`, `generate_findings`) without mutating state.

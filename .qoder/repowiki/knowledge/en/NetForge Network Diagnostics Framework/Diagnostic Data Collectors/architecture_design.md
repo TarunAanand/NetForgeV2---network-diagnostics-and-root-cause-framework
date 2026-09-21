@@ -1,0 +1,4 @@
+Two entry points compose domain-specific collectors from `diagnostics.*` into a unified result list:
+- `local.py::collect_local` is the primary orchestrator; it dispatches by requested domains (`host`, `link`, `path`) to `diagnostics.host.collector`, `diagnostics.link.collector`, and `diagnostics.path.collector`, then augments link results with baseline comparisons via `storage.baselines.compare_probe_metrics`. All outputs are collected as `core.result.DiagnosticResult` objects.
+- `agent_api.py` defines the future HTTP contract for distributed agent probing (POST `/v1/probe`) via `AGENT_API_SCHEMA` and a stub `agent_probe_request`; it currently raises `NotImplementedError` because single-vantage local collection suffices in this phase.
+Dependency direction is one-way: this module depends on `diagnostics.*`, `storage.baselines`, and `core.result`, and exposes no internal APIs beyond the two functions above.

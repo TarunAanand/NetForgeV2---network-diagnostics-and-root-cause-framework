@@ -1,0 +1,1 @@
+Top-level Python package that wires CLI entry points, shared diagnostic models, probe collectors, rule-based analysis, and agent/controller services into a single installable network diagnostics framework.

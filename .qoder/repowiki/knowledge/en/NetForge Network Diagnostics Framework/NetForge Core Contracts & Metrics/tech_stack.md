@@ -1,0 +1,1 @@
+Pydantic v2 models with `Field`, `model_validator`, and `field_validator` for schema validation; Python `enum` and `dataclass(frozen=True)` for immutable value objects; standard library `statistics` for latency stddev.

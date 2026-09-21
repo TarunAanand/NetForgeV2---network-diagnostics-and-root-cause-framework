@@ -1,0 +1,3 @@
+- Domain-driven dispatch: collectors select sub-tasks by string tags in a `domains` list (e.g. `host`, `link`, `path`) rather than separate entry points.
+- Results are accumulated by extending a shared `list[DiagnosticResult]` via repeated `results.extend(...)` calls instead of building per-domain lists.
+- Remote/external contracts are declared as data schemas (`AGENT_API_SCHEMA`) alongside a stub function that documents the expected request/response shape.

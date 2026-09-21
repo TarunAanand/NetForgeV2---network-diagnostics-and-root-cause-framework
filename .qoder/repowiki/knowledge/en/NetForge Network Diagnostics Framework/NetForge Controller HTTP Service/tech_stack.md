@@ -1,0 +1,1 @@
+Python stdlib `http.server.ThreadingHTTPServer` + `urllib.request` for HTTP I/O; Pydantic v2 models for request/response validation; SQLite via `sqlite3` for persistent agent registry and job history; HMAC-based Bearer token authentication using `hmac.compare_digest`.

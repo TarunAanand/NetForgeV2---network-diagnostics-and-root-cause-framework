@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: ""
+title: NetForge Network Diagnostics Framework
+scope:
+    - README.md
+    - IMPLEMENTATION_PLAN.md
+    - .gitignore
+    - cli.py
+    - pyproject.toml
+    - requirements.txt
+source_files: []
+depends_on: []
+related_to: []

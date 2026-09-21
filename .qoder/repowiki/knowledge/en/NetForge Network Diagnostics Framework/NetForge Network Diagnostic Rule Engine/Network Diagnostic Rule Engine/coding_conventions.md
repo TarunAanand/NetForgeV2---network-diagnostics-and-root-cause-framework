@@ -1,0 +1,6 @@
+- Rules are implemented as subclasses of `DiagnosticRule` and registered via the `DEFAULT_RULES` list consumed by `RuleEngine.__init__`, keeping rule discovery decoupled from execution.
+- Each rule evaluates by inspecting `AnalysisContext` rather than raw results, using module-scoped helpers like `by_module` and `first_by_module` to query layered observations.
+- Issues are constructed through `DiagnosticRule.build_issue`, which bounds confidence to [0.05, 0.99] and derives `ConfidenceLevel` automatically instead of setting it ad hoc.
+- Cross-module evidence correlation in rules is expressed by collecting strings into the `correlated_evidence` field of `DiagnosedIssue`, while suppression of lower-priority rules uses the `suppressed_rules` list.
+- Public APIs are explicitly surfaced via `__all__` in `analysis/__init__.py`, hiding internal modules like `context` and `formatter` from package consumers.
+- Severity-driven sorting and status computation follow a fixed ordering dict (`CRITICAL > HIGH > MEDIUM > LOW > INFO`) and map active issues plus probe counts to `DiagnosticStatus`.

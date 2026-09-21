@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: analysis/engine_core
+title: Network Diagnostic Rule Engine
+scope:
+    - analysis/engine.py
+    - analysis/context.py
+    - analysis/models.py
+    - analysis/rule.py
+    - analysis/formatter.py
+    - analysis/__init__.py
+source_files: []
+depends_on: []
+related_to:
+    - path: core
+    - path: tests

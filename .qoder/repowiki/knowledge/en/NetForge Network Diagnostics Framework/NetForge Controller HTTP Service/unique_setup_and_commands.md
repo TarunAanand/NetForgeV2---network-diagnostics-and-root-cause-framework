@@ -1,0 +1,1 @@
+Run as `python -m controller --host 0.0.0.0 --port 8080`. Requires environment variables `NETFORGE_CONTROLLER_TOKEN`, `NETFORGE_AGENT_TOKEN`, and optionally `NETFORGE_CONTROLLER_DB` (defaults to `.netforge_controller.db`).

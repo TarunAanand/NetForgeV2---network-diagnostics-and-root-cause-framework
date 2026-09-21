@@ -1,0 +1,145 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: en-US
+branch: Q0DeR-MaG1C-BrAnCh-Fo2-NoN-GiT-Or-No-C0MmIt
+nodes_managed: true
+exported_at: "2026-09-20T18:05:50Z"
+modules:
+    "":
+        dir_name: NetForge Network Diagnostics Framework
+        title: NetForge Network Diagnostics Framework
+        scope:
+            - README.md
+            - IMPLEMENTATION_PLAN.md
+            - .gitignore
+            - cli.py
+            - pyproject.toml
+            - requirements.txt
+        source_files: []
+        children:
+            - agent
+            - analysis
+            - collectors
+            - controller
+            - core
+            - diagnostics
+            - ingest
+            - storage
+            - tests
+        depends_on: []
+        related_to: []
+    agent:
+        dir_name: NetForge Remote Agent HTTP Service
+        title: NetForge Remote Agent HTTP Service
+        scope:
+            - agent/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: controller
+            - path: tests
+    analysis:
+        dir_name: NetForge Network Diagnostic Rule Engine
+        title: NetForge Network Diagnostic Rule Engine
+        scope:
+            - analysis/
+        source_files: []
+        children:
+            - analysis/engine_core
+        depends_on: []
+        related_to: []
+    analysis/engine_core:
+        dir_name: Network Diagnostic Rule Engine
+        title: Network Diagnostic Rule Engine
+        scope:
+            - analysis/engine.py
+            - analysis/context.py
+            - analysis/models.py
+            - analysis/rule.py
+            - analysis/formatter.py
+            - analysis/__init__.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: core
+            - path: tests
+    collectors:
+        dir_name: Diagnostic Data Collectors
+        title: Diagnostic Data Collectors
+        scope:
+            - collectors/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: diagnostics
+            - path: storage
+    controller:
+        dir_name: NetForge Controller HTTP Service
+        title: NetForge Controller HTTP Service
+        scope:
+            - controller/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: agent
+            - path: tests
+    core:
+        dir_name: NetForge Core Contracts & Metrics
+        title: NetForge Core Contracts & Metrics
+        scope:
+            - core/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: analysis/engine_core
+    diagnostics:
+        dir_name: Network Diagnostics Probes & Collectors
+        title: Network Diagnostics Probes & Collectors
+        scope:
+            - diagnostics/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: collectors
+            - path: ingest
+    ingest:
+        dir_name: Passive Telemetry Ingest (sFlow, IPFIX, SNMP Counters)
+        title: Passive Telemetry Ingest (sFlow, IPFIX, SNMP Counters)
+        scope:
+            - ingest/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: diagnostics
+    storage:
+        dir_name: Probe History & Baseline Comparison Storage
+        title: Probe History & Baseline Comparison Storage
+        scope:
+            - storage/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: collectors
+            - path: tests
+    tests:
+        dir_name: Integration & Unit Test Suite
+        title: Integration & Unit Test Suite
+        scope:
+            - tests/
+            - examples/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: agent
+            - path: analysis/engine_core
+            - path: controller
+            - path: storage

@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: tests
+title: Integration & Unit Test Suite
+scope:
+    - tests/
+    - examples/
+source_files: []
+depends_on: []
+related_to:
+    - path: agent
+    - path: analysis/engine_core
+    - path: controller
+    - path: storage

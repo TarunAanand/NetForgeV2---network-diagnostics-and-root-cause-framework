@@ -1,0 +1,1 @@
+Pure Python orchestration layer returning typed `DiagnosticResult` records; HTTP agent endpoint schema documented as JSON Schema but not yet implemented.

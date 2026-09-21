@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: controller
+title: NetForge Controller HTTP Service
+scope:
+    - controller/
+source_files: []
+depends_on: []
+related_to:
+    - path: agent
+    - path: tests

@@ -1,0 +1,1 @@
+SQLite-backed persistence of probe snapshots and rolling baseline computation used to detect latency, packet loss, and link utilization deviations over time.

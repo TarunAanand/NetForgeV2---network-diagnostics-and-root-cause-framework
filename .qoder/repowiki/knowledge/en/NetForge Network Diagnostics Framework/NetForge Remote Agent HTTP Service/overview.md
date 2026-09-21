@@ -1,0 +1,1 @@
+Standalone Python HTTP agent that exposes health, inventory, and network diagnostic probes (ICMP, TCP, DNS, traceroute, routing, gateway) to a central controller over a bearer-token-authenticated REST API.

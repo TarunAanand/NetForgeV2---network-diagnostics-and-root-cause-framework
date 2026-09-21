@@ -1,0 +1,1 @@
+Standalone HTTP controller that registers agents, fans out probe jobs to multiple agents concurrently, and persists agent state and job results in a local SQLite database.

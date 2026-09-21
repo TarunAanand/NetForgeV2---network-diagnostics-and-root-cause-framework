@@ -1,0 +1,5 @@
+- Database access goes through a private `_connect()` method that opens a connection and sets `row_factory = sqlite3.Row`, with all queries executed inside `with self._connect() as conn:` blocks so connections are auto-closed.
+- Schema initialization uses `CREATE TABLE IF NOT EXISTS` plus `CREATE INDEX IF NOT EXISTS` inside `_ensure_schema`, called once during `__init__` to avoid migration logic.
+- Metric values are persisted as JSON strings in a `payload TEXT` column and deserialized on read via `json.loads`, keeping the schema schema-stable while allowing arbitrary metric shapes.
+- Baseline comparison results are emitted as `DiagnosticResult` objects from `core.result` with module set to `baseline_delta`, carrying `current`, `baseline`, `ratio`, and `deviated` fields in the `metrics` dict.
+- Domain/key namespaces are constructed by concatenating a semantic prefix (e.g. `latency:`, `loss:`, `util:`) with the original target key to scope rolling baselines per probe.

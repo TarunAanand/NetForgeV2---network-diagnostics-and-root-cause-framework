@@ -1,0 +1,1 @@
+Executes modular diagnostic rules against probe results, correlates multi-layer network evidence, resolves conflicts, and produces a synthesized root-cause diagnosis report with recommendations.

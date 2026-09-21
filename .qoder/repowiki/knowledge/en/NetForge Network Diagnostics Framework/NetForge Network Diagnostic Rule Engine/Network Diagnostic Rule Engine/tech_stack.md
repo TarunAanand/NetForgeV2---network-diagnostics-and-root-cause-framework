@@ -1,0 +1,1 @@
+Pydantic v2 models for structured diagnostics, Rich library for terminal rendering, and a pluggable rule interface built on Python ABCs.

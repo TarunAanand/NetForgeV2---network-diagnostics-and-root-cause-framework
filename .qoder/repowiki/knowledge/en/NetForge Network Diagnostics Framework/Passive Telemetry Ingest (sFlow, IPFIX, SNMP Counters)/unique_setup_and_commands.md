@@ -1,0 +1,1 @@
+Offline analysis uses JSON files in either JSON-array `[...]` or JSON-lines format passed to `load_sflow_records()` / `load_ipfix_records()`. Live collectors (`start_sflow_collector` on UDP 6343, `start_ipfix_collector` on UDP 4739, `poll_if_counters` via SNMP) are not yet implemented and will raise `NotImplementedError`.

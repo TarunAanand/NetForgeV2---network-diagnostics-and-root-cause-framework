@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: diagnostics
+title: Network Diagnostics Probes & Collectors
+scope:
+    - diagnostics/
+source_files: []
+depends_on: []
+related_to:
+    - path: collectors
+    - path: ingest

@@ -1,0 +1,31 @@
+[Unit]
+Description=NetForge controller
+Documentation=file:///opt/netforge/docs/deployment.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netforge
+Group=netforge
+WorkingDirectory=/opt/netforge
+EnvironmentFile=/etc/netforge/controller.env
+# Use the interpreter that has NetForge installed. For a virtualenv, point at
+# /opt/netforge/venv/bin/python instead of /usr/bin/python3.
+# --monitor runs the background scheduler that fires due service diagnoses.
+ExecStart=/usr/bin/python3 -m controller --host 0.0.0.0 --port 8080 --monitor --poll-interval 5
+Restart=on-failure
+RestartSec=3
+
+# --- Hardening (the controller writes only its SQLite DB) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+# The controller persists state to NETFORGE_CONTROLLER_DB (see controller.env).
+# Grant write access to that directory, e.g. /var/lib/netforge:
+ReadWritePaths=/var/lib/netforge
+StateDirectory=netforge
+
+[Install]
+WantedBy=multi-user.target

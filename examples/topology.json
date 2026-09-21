@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "name": "lab",
+  "nodes": [
+    {"node_id": "edge-gw", "label": "Edge Gateway", "role": "gateway", "address": "10.0.0.1"},
+    {"node_id": "core-sw", "label": "Core Switch", "role": "switch"},
+    {"node_id": "app-1", "label": "App Host 1", "role": "agent", "agent_id": "agent-app-1", "address": "10.0.0.11", "tags": {"site": "lab", "rack": "r1", "mac": "00:11:22:33:44:55"}},
+    {"node_id": "db-1", "label": "Database Host", "role": "service", "agent_id": "agent-db-1", "address": "10.0.0.21", "tags": {"site": "lab", "rack": "r2", "mac": "00:11:22:33:44:66"}},
+    {"node_id": "wan-1.1.1.1", "label": "Public Vantage", "role": "target", "address": "1.1.1.1"}
+  ],
+  "edges": [
+    {"src": "app-1", "dst": "core-sw", "kind": "lan", "capacity_mbps": 1000},
+    {"src": "db-1", "dst": "core-sw", "kind": "lan", "capacity_mbps": 1000},
+    {"src": "core-sw", "dst": "edge-gw", "kind": "lan", "capacity_mbps": 10000},
+    {"src": "edge-gw", "dst": "wan-1.1.1.1", "kind": "wan"}
+  ]
+}

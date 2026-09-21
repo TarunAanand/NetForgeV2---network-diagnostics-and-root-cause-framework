@@ -1,0 +1,5 @@
+- Each diagnostic rule extends `DiagnosticRule` and implements `evaluate(AnalysisContext)` returning either a `DiagnosedIssue` or `None`.
+- Rules construct issues via the shared `build_issue()` helper rather than instantiating `DiagnosedIssue` directly, ensuring confidence is bounded and `confidence_level` is derived consistently.
+- Rule classes declare class-level `rule_id`, `name`, and `category` metadata used for identification and grouping in the final report.
+- Cross-layer evidence correlation is done through the read-only `AnalysisContext` accessor methods rather than direct access to raw probe results.
+- Rule failures are caught at the engine level and recorded in `rule_errors` instead of propagating exceptions, keeping rule execution isolated.

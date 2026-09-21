@@ -1,0 +1,1 @@
+Pure Python with stdlib `json` and `pathlib`; no live-socket or SNMP libraries are imported yet (live collection is intentionally stubbed).

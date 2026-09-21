@@ -1,0 +1,5 @@
+- CLI subcommands are grouped under Typer apps (`host_app`, `link_app`, `path_app`, `traffic_app`, `flow_app`, `mesh_app`, `diagnose_app`) registered on the root `app`.
+- Each diagnostic domain exposes a `run_*_diagnostics` / `collect_*_diagnostics` function returning Pydantic `DiagnosticResult` objects that feed directly into `DiagnosticEngine` or `RuleEngine`.
+- Diagnosis commands support a `--json` flag to emit `model_dump_json()` and a `--strict` flag that raises `typer.Exit(code=1)` when the report status is not HEALTHY.
+- Optional heavy dependencies (e.g. `analysis.engine`, `diagnostics.link.collector`) are imported lazily inside command handlers rather than at module top.
+- Cross-cutting state (results, findings, baseline comparisons) flows through the shared `core.result.DiagnosticStatus` enum so CLI exit codes and reports stay consistent.

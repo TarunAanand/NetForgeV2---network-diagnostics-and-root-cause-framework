@@ -1,0 +1,1 @@
+Collects host, link, path, mesh, flow, and traffic diagnostics by running ICMP/UDP/TCP probes and passive telemetry, returning standardized DiagnosticResult observations.

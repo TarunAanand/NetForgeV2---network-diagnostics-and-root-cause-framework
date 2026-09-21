@@ -1,0 +1,1 @@
+Pure Python with `sqlite3` for persistent snapshot storage; JSON-serialized payloads stored in a single `snapshots` table with timestamp ordering.

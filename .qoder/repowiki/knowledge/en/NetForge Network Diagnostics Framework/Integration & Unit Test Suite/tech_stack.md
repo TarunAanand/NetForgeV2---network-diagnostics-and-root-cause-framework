@@ -1,0 +1,1 @@
+pytest (discovered via standard `tests/` layout), Python stdlib `http.server.ThreadingHTTPServer` and `urllib.request` for in-process HTTP integration tests, `tmp_path` fixture for temporary SQLite-backed stores.

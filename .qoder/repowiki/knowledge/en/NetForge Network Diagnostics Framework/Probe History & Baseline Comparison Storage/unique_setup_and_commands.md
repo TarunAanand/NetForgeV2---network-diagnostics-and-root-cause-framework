@@ -1,0 +1,1 @@
+Database file location is controlled by the `NETFORGE_HISTORY_DB` environment variable; if unset, snapshots are written to `.netforge_history.db` in the working directory.

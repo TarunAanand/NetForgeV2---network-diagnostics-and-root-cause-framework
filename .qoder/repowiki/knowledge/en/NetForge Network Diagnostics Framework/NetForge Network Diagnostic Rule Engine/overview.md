@@ -1,0 +1,1 @@
+Orchestrates modular, layer-specific diagnostic rules against probe results to correlate multi-layer network evidence and synthesize a prioritized root-cause diagnosis report.

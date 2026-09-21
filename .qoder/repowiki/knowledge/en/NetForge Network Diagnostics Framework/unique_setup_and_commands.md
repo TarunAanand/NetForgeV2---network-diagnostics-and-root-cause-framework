@@ -1,0 +1,1 @@
+`pip install -e .` installs the `netforge` console script; run `netforge host all [--strict] [--diagnose]`, `netforge link all`, `netforge path trace|all`, `netforge traffic speed|jitter|bandwidth`, `netforge flow analyze <path>`, `netforge mesh run`, or `netforge diagnose {host|path|link|all}` to execute layered diagnostics and produce a unified diagnosis report.

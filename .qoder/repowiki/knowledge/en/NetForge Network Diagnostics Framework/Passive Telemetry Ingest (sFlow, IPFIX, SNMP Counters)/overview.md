@@ -1,0 +1,1 @@
+Provides offline replay and live-collector stubs for passive network telemetry ingestion from sFlow, IPFIX/NetFlow, and SNMP interface counters.

@@ -1,0 +1,5 @@
+- Configuration is loaded from environment variables into a frozen `@dataclass` with a `from_env` classmethod that raises on missing required values.
+- All request/response payloads are validated through Pydantic `BaseModel` instances before being passed between layers, with `model_dump(mode='json')` used for serialization.
+- Database access goes through a context-managed `_connect()` method that sets `row_factory = sqlite3.Row`, and schema is ensured lazily in `_ensure_schema` at construction time.
+- HTTP handlers validate the `Authorization: Bearer <token>` header via `hmac.compare_digest` against a configured token before processing any route.
+- Errors are raised as domain-specific exceptions (`UnknownAgentError`, `AgentDispatchError`) and caught at the boundary layer to map them to appropriate HTTP status codes.

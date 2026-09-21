@@ -1,0 +1,1 @@
+Run via `python -m agent --host 0.0.0.0 --port 8081`. Requires environment variables `NETFORGE_AGENT_ID` and `NETFORGE_AGENT_TOKEN` (both mandatory); optional `NETFORGE_ALLOWED_TARGETS` (comma-separated) and any `NETFORGE_TAG_<key>=<value>` pairs to populate topology tags.

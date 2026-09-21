@@ -1,0 +1,5 @@
+- HTTP endpoint tests launch an in-process `ThreadingHTTPServer` bound to `127.0.0.1:0`, start it in a daemon thread, assert responses, then shut down and join the thread in a `finally` block.
+- Service-layer tests construct services with a `tmp_path / '*.db'` store so each test gets a fresh persistent backend without side effects.
+- Rule tests build synthetic `DiagnosticResult` objects via a local `_result(**kwargs)` helper that supplies default module/category/status/severity values and overrides only what is needed.
+- Fake collaborators (e.g. `FakeDispatcher`) are defined inline inside test functions to isolate the unit under test from real network I/O.
+- Assertions on diagnostic outcomes use the typed `DiagnosticStatus` and `Severity` enums rather than raw strings.

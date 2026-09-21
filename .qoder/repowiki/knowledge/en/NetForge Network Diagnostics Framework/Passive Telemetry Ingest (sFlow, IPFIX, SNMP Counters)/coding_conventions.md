@@ -1,0 +1,4 @@
+- Each protocol module pairs an offline loader function with a `start_<protocol>_collector` placeholder that raises `NotImplementedError` instead of implementing live collection.
+- Live collector placeholders accept `(bind: str, port: int)` parameters and embed both values into the raised error message to document the intended binding contract.
+- Protocol modules use `from __future__ import annotations` and PEP 604 union types (`str | Path`) for type hints rather than `typing.Union`.
+- IPFIX reuse the sFlow JSON record schema (keys `src`, `dst`, `bytes`, `packets`, optional `proto`) so callers can treat both flows interchangeably.

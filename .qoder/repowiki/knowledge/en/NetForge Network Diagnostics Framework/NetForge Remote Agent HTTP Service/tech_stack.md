@@ -1,0 +1,1 @@
+Python standard library `http.server` (`ThreadingHTTPServer`, `BaseHTTPRequestHandler`) for the HTTP transport; Pydantic v2 (`BaseModel`, `Field`, `model_validator`) for request validation; `psutil` for interface statistics; bearer-token authentication using `hmac.compare_digest` for timing-safe comparison.

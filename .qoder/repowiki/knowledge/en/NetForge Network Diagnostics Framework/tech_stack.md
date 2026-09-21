@@ -1,0 +1,1 @@
+Python ≥3.10 with Typer for CLI routing, Rich for terminal output, Pydantic v2 for the shared DiagnosticResult/observation schema consumed by every collector, analyzer, and agent/controller service; psutil for host metrics; SQLite-backed storage used by both CLI baselines and the controller service.

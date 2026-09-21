@@ -1,0 +1,5 @@
+- Each sub-package exposes a `collect_*_diagnostics` or `run_*_diagnostics` entry point that returns `list[DiagnosticResult]` (or a single result) without printing, while separate `run_*` helpers add Rich table rendering.
+- Probes construct `DiagnosticResult` objects with explicit `module`, `category`, `status`, `severity`, `summary`, `target`, `metrics`, `evidence`, and optional `warnings`/`errors` fields.
+- Health classification follows a consistent threshold pattern: map numeric metrics (utilization %, drops/errors per second, goodput Mbps, jitter ms) to `DiagnosticStatus.HEALTHY/DEGRADED/FAILED` paired with `Severity.INFO/LOW/MEDIUM/HIGH/CRITICAL`.
+- Per-interface or per-target loops skip loopback interfaces (`lo*`, `loopback`) before computing metrics.
+- Optional aggregation steps (e.g., baseline comparison in host collection, mesh summary in mesh runner) are gated behind boolean flags or post-processing after individual probe results are collected.

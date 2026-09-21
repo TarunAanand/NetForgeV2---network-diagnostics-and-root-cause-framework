@@ -1,0 +1,30 @@
+{
+  "topology": "lab",
+  "switches": [
+    {
+      "node_id": "core-sw",
+      "lldp": [
+        {
+          "local_port": "Gi1/0/1",
+          "neighbor_sys_name": "app-1",
+          "neighbor_mgmt_addr": "10.0.0.11",
+          "neighbor_chassis_id": "00:11:22:33:44:55",
+          "neighbor_port_id": "eth0",
+          "ttl": 120
+        },
+        {
+          "local_port": "Gi1/0/2",
+          "neighbor_sys_name": "db-1",
+          "neighbor_mgmt_addr": "10.0.0.21",
+          "neighbor_chassis_id": "00:11:22:33:44:66",
+          "neighbor_port_id": "eth0",
+          "ttl": 120
+        }
+      ],
+      "mac_table": [
+        {"mac": "00:11:22:33:44:55", "bridge_port": 1, "if_index": 1},
+        {"mac": "00:11:22:33:44:66", "bridge_port": 2, "if_index": 2}
+      ]
+    }
+  ]
+}

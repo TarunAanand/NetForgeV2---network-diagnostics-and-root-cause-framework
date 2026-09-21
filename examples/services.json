@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "services": [
+    {"service_id": "db-postgres", "name": "Primary PostgreSQL", "node_id": "db-1", "host": "10.0.0.21", "port": 5432, "protocol": "tcp", "tags": {"tier": "data"}},
+    {"service_id": "app-http", "name": "App HTTP API", "node_id": "app-1", "host": "10.0.0.11", "port": 8080, "protocol": "tcp", "tags": {"tier": "app"}},
+    {"service_id": "core-dns", "name": "Internal DNS", "node_id": "core-sw", "host": "10.0.0.1", "port": 53, "protocol": "udp", "tags": {"tier": "infra"}}
+  ]
+}

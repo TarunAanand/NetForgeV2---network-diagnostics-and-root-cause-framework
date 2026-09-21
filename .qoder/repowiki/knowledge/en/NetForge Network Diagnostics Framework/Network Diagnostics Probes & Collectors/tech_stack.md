@@ -1,0 +1,1 @@
+Python with `psutil` for interface counters, `urllib.request` for HTTP speed tests, `rich` for console table output, and sFlow ingestion via the project's `ingest.sflow` module.

@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: analysis
+title: NetForge Network Diagnostic Rule Engine
+scope:
+    - analysis/
+source_files: []
+depends_on: []
+related_to: []

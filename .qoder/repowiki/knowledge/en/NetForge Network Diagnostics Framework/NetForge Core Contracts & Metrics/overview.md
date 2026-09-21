@@ -1,0 +1,1 @@
+Defines the shared diagnostic result model, observation envelopes for agent-controller communication, and pure KPI math used by all NetForge probe domains.

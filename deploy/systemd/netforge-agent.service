@@ -1,0 +1,29 @@
+[Unit]
+Description=NetForge remote agent
+Documentation=file:///opt/netforge/docs/deployment.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netforge
+Group=netforge
+WorkingDirectory=/opt/netforge
+# Identity + tokens live in the EnvironmentFile (never hardcode secrets here).
+EnvironmentFile=/etc/netforge/agent.env
+# Use the interpreter that has NetForge installed. For a virtualenv, point at
+# /opt/netforge/venv/bin/python instead of /usr/bin/python3.
+ExecStart=/usr/bin/python3 -m agent --host 0.0.0.0 --port 8081
+Restart=on-failure
+RestartSec=3
+
+# --- Hardening (agents only run outbound probes; no writable state needed) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
