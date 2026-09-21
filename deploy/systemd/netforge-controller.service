@@ -13,6 +13,9 @@ EnvironmentFile=/etc/netforge/controller.env
 # Use the interpreter that has NetForge installed. For a virtualenv, point at
 # /opt/netforge/venv/bin/python instead of /usr/bin/python3.
 # --monitor runs the background scheduler that fires due service diagnoses.
+# 0.0.0.0 exposes the bearer-authenticated API to the network: append
+# --certfile /etc/netforge/controller.pem (and --keyfile) so the token is not
+# sent in cleartext, or drop back to --host 127.0.0.1 behind a TLS proxy.
 ExecStart=/usr/bin/python3 -m controller --host 0.0.0.0 --port 8080 --monitor --poll-interval 5
 Restart=on-failure
 RestartSec=3

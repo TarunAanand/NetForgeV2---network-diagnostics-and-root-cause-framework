@@ -11,10 +11,22 @@ from agent.service import AgentService
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="NetForge remote agent")
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="bind address; pass 0.0.0.0 only behind TLS or a trusted network boundary",
+    )
     parser.add_argument("--port", type=int, default=8081)
+    parser.add_argument("--certfile", help="PEM certificate; enables TLS for the probe API")
+    parser.add_argument("--keyfile", help="PEM private key (defaults to --certfile)")
     args = parser.parse_args()
-    serve(AgentService(AgentConfig.from_env()), host=args.host, port=args.port)
+    serve(
+        AgentService(AgentConfig.from_env()),
+        host=args.host,
+        port=args.port,
+        certfile=args.certfile,
+        keyfile=args.keyfile,
+    )
 
 
 if __name__ == "__main__":

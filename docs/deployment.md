@@ -207,8 +207,12 @@ New-NetFirewallRule -DisplayName "NetForge Agent" -Direction Inbound `
 - **Protect the env files.** They contain the shared secrets — `0600`/`0640` on
   Linux, ACL-restricted on Windows. Never commit filled-in copies.
 - **Bind deliberately.** `--host 0.0.0.0` exposes the service to the network;
-  use `127.0.0.1` plus an SSH tunnel when only local/remote-forwarded access is
-  needed.
+  the default `127.0.0.1` plus an SSH tunnel covers local/remote-forwarded
+  access.
+- **Enable TLS.** Bearer tokens are sent on every request, so pass
+  `--certfile /etc/netforge/<service>.pem` (and `--keyfile` when the key is in a
+  separate file) whenever the service is reachable off-host, or terminate TLS in
+  a reverse proxy in front of it.
 
 ---
 
