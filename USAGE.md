@@ -34,25 +34,6 @@ telemetry ingest (including the bundled SNMPv3 engine), and how to run the tests
 
 ## Architecture at a glance
 
-```
-                         ┌──────────────────────────────────────────┐
-   netforge <cmd>        │  Controller  (python -m controller)       │
-  ───────────────►       │  HTTP :8080, bearer-token auth            │
-   local CLI             │  • agent registry   • topology / services │
-   (this machine)        │  • multi-vantage diagnosis (M4)           │
-                         │  • schedules / alerts / incidents (M5)    │
-                         │  • host↔switch-port correlation (M6)      │
-                         └───────────────┬──────────────────────────┘
-                                         │ fan-out probe jobs (HTTP)
-                    ┌────────────────────┼────────────────────┐
-                    ▼                    ▼                     ▼
-              ┌──────────┐         ┌──────────┐          ┌──────────┐
-              │ Agent    │         │ Agent    │          │ Agent    │
-              │ :8081    │         │ :8081    │          │ :8081    │
-              │ host A   │         │ host B   │          │ host C   │
-              └──────────┘         └──────────┘          └──────────┘
-```
-
 ![Architechture Image.png](/arch-diagram.png)
 
 - **Local CLI** (`netforge ...`) runs diagnostics directly on the current
