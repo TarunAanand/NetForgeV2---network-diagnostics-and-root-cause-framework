@@ -352,7 +352,9 @@ class SnmpV3Engine:
 
         UDP datagrams that do not match the outstanding request are discarded
         rather than parsed, so an off-path injector cannot answer on behalf of
-        the device by racing the real response.
+        the device by racing the real response. Discarding never extends the
+        attempt: the socket timeout shrinks to the remaining deadline, so a
+        stream of foreign datagrams cannot keep the poll alive.
         """
         last: Exception | None = None
         for _ in range(self.retries + 1):
@@ -361,7 +363,11 @@ class SnmpV3Engine:
                 sock.settimeout(self.timeout)
                 sock.sendto(message, (self.host, self.port))
                 deadline = _time.monotonic() + self.timeout
-                while _time.monotonic() < deadline:
+                while True:
+                    remaining = deadline - _time.monotonic()
+                    if remaining <= 0:
+                        break
+                    sock.settimeout(remaining)
                     data, _addr = sock.recvfrom(MAX_MESSAGE_SIZE)
                     data = bytes(data)
                     try:
@@ -468,7 +474,11 @@ class SnmpV3Engine:
             raise SnmpError("response is outside the time window (clock skew)")
 
     def walk(self, base_oid: str, max_oids: int = MAX_WALK_OIDS) -> dict[str, Any]:
-        """GETNEXT-loop a column, returning ``{index_suffix: value}``."""
+        """GETNEXT-loop a column, returning ``{index_suffix: value}``.
+
+        Raises :class:`SnmpError` when ``max_oids`` is exhausted, so a caller
+        never mistakes a truncated table for a complete one.
+        """
         base = base_oid.strip(".")
         prefix = base + "."
         out: dict[str, Any] = {}
@@ -476,8 +486,8 @@ class SnmpV3Engine:
         for _ in range(max_oids):
             oid, value = self.getnext(current)
             if value == "endOfMibView" or not oid.startswith(prefix) or oid == current:
-                break
+                return out
             if value not in ("noSuchObject", "noSuchInstance"):
                 out[oid[len(prefix) :]] = value
             current = oid
-        return out
+        raise SnmpError(f"{base_oid} walk exceeded {max_oids} OIDs; the table would be truncated")

@@ -366,7 +366,9 @@ def test_engine_rejects_a_stale_time_window():
         engine.get(SYS_DESCR)
 
 
-def test_walk_stops_at_the_oid_budget():
+def test_walk_raises_instead_of_returning_a_truncated_table():
     agent = FakeAgent(AUTH_NO_PRIV)
     engine = _engine(AUTH_NO_PRIV, agent)
-    assert engine.walk(OID_IF_DESCR, max_oids=1) == {"1": "eth0"}
+    with pytest.raises(SnmpError):
+        engine.walk(OID_IF_DESCR, max_oids=1)
+    assert engine.walk(OID_IF_DESCR, max_oids=10) == {"1": "eth0", "2": "eth1"}

@@ -459,14 +459,18 @@ From any machine with the CLI (set `NETFORGE_CONTROLLER_URL` /
 ```bash
 netforge controller health
 
-netforge controller agent register agent-app-1 http://10.0.0.11:8081 --tag site=lab --tag rack=r1
-netforge controller agent register agent-db-1  http://10.0.0.21:8081 --tag site=lab --tag rack=r2
+netforge controller agent register agent-app-1 https://10.0.0.11:8081 --tag site=lab --tag rack=r1
+netforge controller agent register agent-db-1  https://10.0.0.21:8081 --tag site=lab --tag rack=r2
 
 netforge controller agent list
 ```
 
 The URL must be reachable **from the controller** (that is the machine that
-fans out probe jobs), not necessarily from your CLI host.
+fans out probe jobs), not necessarily from your CLI host. Use the scheme the
+agent actually serves: `https://` when it was started with `--certfile`, and
+`http://` otherwise. The controller validates agent certificates against the
+system trust store, so a private CA must be installed on the controller host
+(e.g. `SSL_CERT_FILE=/etc/netforge/ca.pem`) or the probes fail to connect.
 
 ### Network / firewall checklist
 

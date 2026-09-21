@@ -36,7 +36,7 @@ def read_json_body(handler: BaseHTTPRequestHandler, max_bytes: int = MAX_BODY_BY
     body = handler.rfile.read(size) or b"{}"
     try:
         decoded = json.loads(body)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, UnicodeDecodeError):
         raise MalformedBody("request body must be JSON") from None
     if not isinstance(decoded, dict):
         raise MalformedBody("request body must be a JSON object")

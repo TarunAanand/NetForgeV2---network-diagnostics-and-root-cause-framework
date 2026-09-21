@@ -55,6 +55,8 @@ def test_read_json_body_rejects_malformed_length_and_payload():
         read_json_body(_FakeHandler({"Content-Length": "2"}, b"{{"))
     with pytest.raises(MalformedBody):
         read_json_body(_FakeHandler({"Content-Length": "2"}, b"[]"))
+    with pytest.raises(MalformedBody):
+        read_json_body(_FakeHandler({"Content-Length": "4"}, b'"\xff\xfe"'))
 
 
 def test_read_json_body_defaults_to_empty_object():
