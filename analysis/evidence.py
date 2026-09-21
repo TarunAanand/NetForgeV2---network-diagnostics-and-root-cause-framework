@@ -109,10 +109,17 @@ class EvidenceCorrelator:
                 )
             )
 
-        latency = next((r for r in results if r.module == "latency"), None)
+        latency = next(
+            (
+                r
+                for r in results
+                if r.module in {"latency", "traffic_jitter"}
+            ),
+            None,
+        )
         if latency and latency.metrics.get("jitter_ms") is not None:
             jitter = float(latency.metrics["jitter_ms"])
-            if jitter > 0 and packet_loss < 30 and not end_to_end_failed:
+            if jitter >= 20.0 and packet_loss < 30 and not end_to_end_failed:
                 anomalies.append(
                     EvidenceAnomaly(
                         kind=EvidenceAnomalyKind.LATENCY_WIGGLE,

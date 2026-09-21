@@ -1,3 +1,6 @@
+from contextlib import AbstractContextManager, nullcontext
+from typing import Callable, TypeVar
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -15,32 +18,50 @@ from diagnostics.host.latency import run_latency_diagnostics
 from diagnostics.host.resource_network import run_resource_network_diagnostics
 from diagnostics.host.gateway import run_gateway_diagnostics
 
+T = TypeVar("T")
+
+console = Console(highlight=False)
+
 app = typer.Typer(
     name="netforge",
-    help="NetForge Network Diagnostics Framework",
+    help=(
+        "Professional network diagnostics from the local host. "
+        "Run a focused probe, combine probes with `diagnose`, or use "
+        "`controller` for distributed monitoring."
+    ),
+    rich_markup_mode="rich",
+    epilog=(
+        "Examples:\n"
+        "  netforge diagnose all --target 1.1.1.1\n"
+        "  netforge diagnose path --target example.com\n"
+        "  netforge host gateway --count 10\n"
+        "  netforge --help"
+    ),
     no_args_is_help=True,
 )
 
-host_app = typer.Typer(name="host", help="Host-level (node/endpoint) diagnostics")
-link_app = typer.Typer(name="link", help="Link-level interface diagnostics")
-path_app = typer.Typer(name="path", help="Path-level traceroute diagnostics")
-traffic_app = typer.Typer(name="traffic", help="Traffic / bandwidth / jitter probes")
-flow_app = typer.Typer(name="flow", help="Flow analysis over passive telemetry")
-mesh_app = typer.Typer(name="mesh", help="Ping-mesh / distributed observations")
-diagnose_app = typer.Typer(name="diagnose", help="Intelligent root-cause diagnosis")
+host_app = typer.Typer(name="host", help="Host and endpoint probes: connectivity, DNS, gateway, latency, and resources.", rich_markup_mode="rich", no_args_is_help=True)
+link_app = typer.Typer(name="link", help="Local interface utilization, drops, errors, and congestion.", rich_markup_mode="rich", no_args_is_help=True)
+path_app = typer.Typer(name="path", help="Traceroute, per-hop metrics, and forwarding-path comparison.", rich_markup_mode="rich", no_args_is_help=True)
+traffic_app = typer.Typer(name="traffic", help="Bandwidth, download goodput, and jitter measurements.", rich_markup_mode="rich", no_args_is_help=True)
+flow_app = typer.Typer(name="flow", help="Analyze exported JSON/JSONL passive-flow data.", rich_markup_mode="rich", no_args_is_help=True)
+mesh_app = typer.Typer(name="mesh", help="Compare reachability across multiple targets.", rich_markup_mode="rich", no_args_is_help=True)
+diagnose_app = typer.Typer(name="diagnose", help="Evidence-based diagnosis that separates observations from confirmed faults.", rich_markup_mode="rich", no_args_is_help=True)
 
 controller_app = typer.Typer(
     name="controller",
-    help="Distributed controller: diagnose, monitor, and correlate via a running controller (HTTP)",
+    help="Use a running controller for distributed diagnosis, schedules, alerts, incidents, and topology correlation.",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
 )
-ctrl_agent_app = typer.Typer(name="agent", help="Register and list remote agents")
-ctrl_topology_app = typer.Typer(name="topology", help="Import and list topologies")
-ctrl_service_app = typer.Typer(name="service", help="Register and list services")
-ctrl_monitor_app = typer.Typer(name="monitor", help="Run the scheduled monitoring loop on demand")
-ctrl_schedule_app = typer.Typer(name="schedule", help="Manage periodic diagnosis schedules")
-ctrl_alert_app = typer.Typer(name="alert", help="Alert rules and firing alerts")
-ctrl_incident_app = typer.Typer(name="incident", help="Incident lifecycle")
-ctrl_binding_app = typer.Typer(name="binding", help="Host-to-switch-port bindings")
+ctrl_agent_app = typer.Typer(name="agent", help="Register and inspect remote diagnostic agents.", rich_markup_mode="rich", no_args_is_help=True)
+ctrl_topology_app = typer.Typer(name="topology", help="Import and inspect network topology definitions.", rich_markup_mode="rich", no_args_is_help=True)
+ctrl_service_app = typer.Typer(name="service", help="Register and inspect monitored service endpoints.", rich_markup_mode="rich", no_args_is_help=True)
+ctrl_monitor_app = typer.Typer(name="monitor", help="Run scheduled monitoring immediately.", rich_markup_mode="rich", no_args_is_help=True)
+ctrl_schedule_app = typer.Typer(name="schedule", help="Create, list, and remove diagnosis schedules.", rich_markup_mode="rich", no_args_is_help=True)
+ctrl_alert_app = typer.Typer(name="alert", help="Manage alert rules and firing alerts.", rich_markup_mode="rich", no_args_is_help=True)
+ctrl_incident_app = typer.Typer(name="incident", help="Review and update incident state.", rich_markup_mode="rich", no_args_is_help=True)
+ctrl_binding_app = typer.Typer(name="binding", help="Inspect host-to-switch-port correlations.", rich_markup_mode="rich", no_args_is_help=True)
 
 app.add_typer(host_app, name="host")
 app.add_typer(link_app, name="link")
@@ -59,6 +80,27 @@ controller_app.add_typer(ctrl_schedule_app, name="schedule")
 controller_app.add_typer(ctrl_alert_app, name="alert")
 controller_app.add_typer(ctrl_incident_app, name="incident")
 controller_app.add_typer(ctrl_binding_app, name="binding")
+
+
+def _working(
+    message: str,
+    *,
+    enabled: bool,
+) -> AbstractContextManager[None]:
+    """Show progress without corrupting machine-readable JSON output."""
+    if enabled:
+        return console.status(f"[cyan]{message}[/cyan]", spinner="dots")
+    return nullcontext()
+
+
+def _collect(
+    message: str,
+    collector: Callable[[], T],
+    *,
+    json_output: bool,
+) -> T:
+    with _working(message, enabled=not json_output):
+        return collector()
 
 
 # ---------------------------------------------------------------------------
@@ -492,9 +534,9 @@ def _exit_from_report(report, strict: bool) -> None:
 
 @diagnose_app.command("host")
 def diagnose_host(
-    target: str = typer.Option("google.com", "--target", "-t"),
-    json_output: bool = typer.Option(False, "--json"),
-    strict: bool = typer.Option(False, "--strict"),
+    target: str = typer.Option("google.com", "--target", "-t", help="Hostname or IP address to test."),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON only, with no progress UI."),
+    strict: bool = typer.Option(False, "--strict", help="Exit with code 1 for any non-healthy diagnosis."),
 ):
     """Diagnose host-layer issues via the Rule Engine."""
     from analysis.engine import RuleEngine
@@ -506,7 +548,11 @@ def diagnose_host(
         console.print(
             f"[bold cyan]NetForge[/bold cyan]: collecting host observations for [bold]{target}[/bold]..."
         )
-    results = collect_host_diagnostics(target_host=target)
+    results = _collect(
+        f"Collecting host observations for {target}",
+        lambda: collect_host_diagnostics(target_host=target),
+        json_output=json_output,
+    )
     report = RuleEngine().analyze(results, target_host=target)
     if json_output:
         print(report.model_dump_json(indent=2))
@@ -517,9 +563,9 @@ def diagnose_host(
 
 @diagnose_app.command("path")
 def diagnose_path(
-    target: str = typer.Option("1.1.1.1", "--target", "-t"),
-    json_output: bool = typer.Option(False, "--json"),
-    strict: bool = typer.Option(False, "--strict"),
+    target: str = typer.Option("1.1.1.1", "--target", "-t", help="Hostname or IP address to trace."),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON only, with no progress UI."),
+    strict: bool = typer.Option(False, "--strict", help="Exit with code 1 for any non-healthy diagnosis."),
 ):
     """Diagnose path-layer issues."""
     from analysis.engine import RuleEngine
@@ -531,7 +577,11 @@ def diagnose_path(
         console.print(
             f"[bold cyan]NetForge[/bold cyan]: collecting path observations for [bold]{target}[/bold]..."
         )
-    results = collect_path_diagnostics(target=target)
+    results = _collect(
+        f"Collecting path observations for {target}",
+        lambda: collect_path_diagnostics(target=target),
+        json_output=json_output,
+    )
     report = RuleEngine().analyze(results, target_host=target)
     if json_output:
         print(report.model_dump_json(indent=2))
@@ -542,9 +592,9 @@ def diagnose_path(
 
 @diagnose_app.command("link")
 def diagnose_link(
-    json_output: bool = typer.Option(False, "--json"),
-    strict: bool = typer.Option(False, "--strict"),
-    interval: float = typer.Option(1.0, "--interval", "-i"),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON only, with no progress UI."),
+    strict: bool = typer.Option(False, "--strict", help="Exit with code 1 for any non-healthy diagnosis."),
+    interval: float = typer.Option(1.0, "--interval", "-i", min=0.1, help="Seconds between interface counter samples."),
 ):
     """Diagnose link-layer issues."""
     from analysis.engine import RuleEngine
@@ -559,10 +609,14 @@ def diagnose_link(
     console = Console()
     if not json_output:
         console.print("[bold cyan]NetForge[/bold cyan]: collecting link observations...")
-    util = measure_link_utilization(interval=interval)
-    errors = measure_link_errors(interval=interval)
-    results = util + errors + measure_link_congestion(util, errors)
-    results.extend(compare_probe_metrics(util))
+    def collect_link() -> list:
+        util = measure_link_utilization(interval=interval)
+        errors = measure_link_errors(interval=interval)
+        collected = util + errors + measure_link_congestion(util, errors)
+        collected.extend(compare_probe_metrics(util))
+        return collected
+
+    results = _collect("Collecting link utilization, errors, and congestion", collect_link, json_output=json_output)
     report = RuleEngine().analyze(results, target_host="local-links")
     if json_output:
         print(report.model_dump_json(indent=2))
@@ -573,9 +627,9 @@ def diagnose_link(
 
 @diagnose_app.command("all")
 def diagnose_all(
-    target: str = typer.Option("1.1.1.1", "--target", "-t"),
-    json_output: bool = typer.Option(False, "--json"),
-    strict: bool = typer.Option(False, "--strict"),
+    target: str = typer.Option("1.1.1.1", "--target", "-t", help="Hostname or IP address to diagnose."),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON only, with no progress UI."),
+    strict: bool = typer.Option(False, "--strict", help="Exit with code 1 for any non-healthy diagnosis."),
 ):
     """Merge host + link + path observations into one diagnosis."""
     from analysis.engine import RuleEngine
@@ -587,7 +641,11 @@ def diagnose_all(
         console.print(
             f"[bold cyan]NetForge[/bold cyan]: collecting host+link+path for [bold]{target}[/bold]..."
         )
-    results = collect_local(domains=["host", "link", "path"], target=target)
+    results = _collect(
+        f"Collecting host, link, and path observations for {target}",
+        lambda: collect_local(domains=["host", "link", "path"], target=target),
+        json_output=json_output,
+    )
     report = RuleEngine().analyze(results, target_host=target)
     if json_output:
         print(report.model_dump_json(indent=2))

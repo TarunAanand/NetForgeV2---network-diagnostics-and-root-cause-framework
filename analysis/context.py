@@ -115,7 +115,8 @@ class AnalysisContext:
     def get_avg_latency(self) -> float:
         latencies = [
             r.metrics.get("avg_ms", 0.0)
-            for r in self.by_module("latency")
+            for r in self.results
+            if r.module in {"latency", "traffic_jitter", "gateway"}
             if r.metrics.get("avg_ms") is not None
         ]
         return sum(latencies) / len(latencies) if latencies else 0.0
@@ -127,6 +128,31 @@ class AnalysisContext:
             if r.metrics.get("jitter_ms") is not None
         ]
         return max(jitters) if jitters else 0.0
+
+    def get_jitter(self, module: str) -> float | None:
+        """Return jitter for a specific measurement scope."""
+        values = [
+            float(r.metrics["jitter_ms"])
+            for r in self.by_module(module)
+            if r.metrics.get("jitter_ms") is not None
+        ]
+        return max(values) if values else None
+
+    def has_confirmed_jitter_pattern(self, threshold_ms: float = 40.0) -> bool:
+        """Require local and end-to-end corroboration before calling bufferbloat."""
+        gateway = self.get_jitter("gateway")
+        endpoint = self.get_jitter("latency") or self.get_jitter("traffic_jitter")
+        if gateway is None or endpoint is None:
+            return False
+        if gateway < threshold_ms or endpoint < threshold_ms:
+            return False
+
+        under_load = any(
+            r.metrics.get("under_load") is True
+            or r.metrics.get("load_phase") == "under_load"
+            for r in self.results
+        )
+        return under_load or self.get_max_link_utilization() >= 70.0
 
     # --- Resource & Activity Layer ---
     def get_active_drop_rate(self) -> float:

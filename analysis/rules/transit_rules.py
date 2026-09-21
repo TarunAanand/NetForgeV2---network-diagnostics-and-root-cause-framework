@@ -66,6 +66,11 @@ class HighJitterLatencySpikeRule(DiagnosticRule):
         if jitter < 40.0:
             return None
 
+        # A single endpoint jitter sample is not enough to identify bufferbloat.
+        # Require gateway and endpoint corroboration plus evidence of load.
+        if not ctx.has_confirmed_jitter_pattern():
+            return None
+
         # If host CPU is saturated (>85%), host bufferbloat rule handles that
         if ctx.get_cpu_percent() >= 85.0:
             return None

@@ -1,5 +1,6 @@
 from core.result import DiagnosticResult, DiagnosticStatus, Severity
 from analysis.evidence import EvidenceCorrelator
+from analysis.engine import RuleEngine
 
 
 def _result(**kwargs):
@@ -45,3 +46,40 @@ def test_evidence_correlator_keeps_path_change_as_unconfirmed_without_failure():
     anomalies = EvidenceCorrelator.correlate(results)
     assert any(a.kind.value == "path_change" for a in anomalies)
     assert all(a.confirmed is False for a in anomalies)
+
+
+def test_anomalies_do_not_degrade_healthy_report():
+    results = [
+        _result(
+            module="interface",
+            target="eth0",
+            metrics={"is_up": True},
+        ),
+        _result(
+            module="routing",
+            metrics={"default_gateway": "192.168.1.1"},
+        ),
+        _result(module="connectivity", target="1.1.1.1"),
+        _result(
+            module="traceroute",
+            target="1.1.1.1",
+            metrics={
+                "hops": [
+                    {"hop": 2, "address": "10.0.0.1", "loss_percent": 66.7},
+                    {"hop": 3, "address": "1.1.1.1", "loss_percent": 0},
+                ]
+            },
+        ),
+        _result(module="packet_loss", metrics={"packet_loss_percent": 0.0}),
+        _result(
+            module="path_change",
+            status=DiagnosticStatus.DEGRADED,
+            metrics={"changed": True},
+            summary="fingerprint changed",
+        ),
+    ]
+
+    report = RuleEngine().analyze(results, target_host="1.1.1.1")
+
+    assert report.status == DiagnosticStatus.HEALTHY
+    assert "No confirmed network fault" in report.verdict

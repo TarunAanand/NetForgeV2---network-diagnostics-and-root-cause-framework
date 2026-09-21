@@ -101,6 +101,12 @@ class RuleEngine:
         healthy_count = sum(1 for r in results if r.status == DiagnosticStatus.HEALTHY)
         degraded_count = sum(1 for r in results if r.status == DiagnosticStatus.DEGRADED)
         failed_count = sum(1 for r in results if r.status == DiagnosticStatus.FAILED)
+        substantive_degraded_count = sum(
+            1
+            for r in results
+            if r.status == DiagnosticStatus.DEGRADED
+            and r.module not in {"path_change", "traceroute"}
+        )
 
         # 5. Determine Overall Report Status and Verdict
         confirmed_failures = [
@@ -109,7 +115,10 @@ class RuleEngine:
         ]
         if confirmed_failures:
             status = DiagnosticStatus.FAILED
-        elif active_issues or degraded_count > 0:
+        elif substantive_degraded_count > 0 or any(
+            issue.severity not in {Severity.LOW, Severity.INFO}
+            for issue in active_issues
+        ):
             status = DiagnosticStatus.DEGRADED
         else:
             status = DiagnosticStatus.HEALTHY
@@ -148,6 +157,12 @@ class RuleEngine:
     ) -> str:
         if not issues:
             return "All diagnostic probes passed. Host network stack, local gateway, DNS, and transit appear fully operational."
+
+        if all(issue.severity in {Severity.LOW, Severity.INFO} for issue in issues):
+            return (
+                "No confirmed network fault. Minor observations were recorded and "
+                "require corroboration before escalation."
+            )
 
         primary = issues[0]
         if len(issues) == 1:

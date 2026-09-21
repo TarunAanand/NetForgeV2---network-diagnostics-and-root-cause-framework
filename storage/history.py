@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import statistics
 import time
 from contextlib import closing, contextmanager
 from pathlib import Path
@@ -122,4 +123,41 @@ class HistoryStore:
                 values.append(float(val))
         if not values:
             return None
-        return sum(values) / len(values)
+        return statistics.median(values)
+
+    def rolling_stats(
+        self,
+        domain: str,
+        key: str,
+        metric: str,
+        limit: int = 20,
+    ) -> dict[str, float | int] | None:
+        """Return robust baseline statistics for recent numeric samples."""
+        with self._session() as conn:
+            rows = conn.execute(
+                "SELECT payload FROM snapshots "
+                "WHERE domain = ? AND key = ? ORDER BY created_at DESC LIMIT ?",
+                (domain, key, limit),
+            ).fetchall()
+        values: list[float] = []
+        for row in rows:
+            payload = json.loads(row["payload"])
+            value = payload.get(metric)
+            if isinstance(value, (int, float)):
+                values.append(float(value))
+        if not values:
+            return None
+
+        median = statistics.median(values)
+        deviations = [abs(value - median) for value in values]
+        mad = statistics.median(deviations)
+        return {
+            "sample_count": len(values),
+            "median": median,
+            "p95": (
+                max(values)
+                if len(values) < 2
+                else statistics.quantiles(values, n=20, method="inclusive")[-1]
+            ),
+            "mad": mad,
+        }

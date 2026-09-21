@@ -18,11 +18,13 @@ def record_and_compare(
     store: HistoryStore | None = None,
 ) -> DiagnosticResult:
     """
-    Persist a metric sample and compare it to the rolling baseline mean.
+    Persist a metric sample and compare it to a robust rolling baseline.
     Emits a DiagnosticResult with module 'baseline_delta'.
     """
     store = store or HistoryStore()
-    baseline = store.rolling_baseline(domain, key, metric_name, limit=20)
+    stats = store.rolling_stats(domain, key, metric_name, limit=20)
+    baseline = float(stats["median"]) if stats else None
+    sample_count = int(stats["sample_count"]) if stats else 0
     store.save_snapshot(
         domain=domain,
         key=key,
@@ -44,21 +46,46 @@ def record_and_compare(
                 "baseline": None,
                 "ratio": None,
                 "deviated": False,
+                "sample_count": sample_count,
             },
             evidence=[f"First samples stored for {metric_name}"],
         )
 
     ratio = current_value / baseline if baseline else None
     worsened = False
-    if ratio is not None:
+    if ratio is not None and sample_count >= 5:
         abs_delta = abs(current_value - baseline)
         abs_guard = 1.0 if "percent" in metric_name.lower() else 5.0
+        mad = float(stats["mad"]) if stats else 0.0
+        meaningful_delta = (
+            abs_delta >= abs_guard
+            or current_value >= 10.0
+        ) and (
+            current_value > float(stats["p95"])
+            or (mad > 0.0 and abs_delta >= 3.0 * mad)
+        )
         if higher_is_worse:
-            worsened = ratio >= warn_ratio and (abs_delta >= abs_guard or current_value >= 10.0)
+            worsened = ratio >= warn_ratio and meaningful_delta
         else:
             worsened = ratio <= (1.0 / warn_ratio) if warn_ratio else False
 
-    if ratio is not None and higher_is_worse and ratio >= fail_ratio and (abs(current_value - baseline) >= (1.0 if "percent" in metric_name.lower() else 5.0) or current_value >= 10.0):
+    if (
+        ratio is not None
+        and higher_is_worse
+        and sample_count >= 5
+        and ratio >= fail_ratio
+        and (
+            abs(current_value - baseline) >= (1.0 if "percent" in metric_name.lower() else 5.0)
+            or current_value >= 10.0
+        )
+        and (
+            current_value > float(stats["p95"])
+            or (
+                float(stats["mad"]) > 0.0
+                and abs(current_value - baseline) >= 3.0 * float(stats["mad"])
+            )
+        )
+    ):
         status, severity = DiagnosticStatus.FAILED, Severity.HIGH
     elif worsened:
         status, severity = DiagnosticStatus.DEGRADED, Severity.MEDIUM
@@ -84,9 +111,12 @@ def record_and_compare(
             "ratio": round(ratio, 3) if ratio is not None else None,
             "deviated": worsened,
             "higher_is_worse": higher_is_worse,
+            "sample_count": sample_count,
+            "baseline_mad": round(float(stats["mad"]), 4) if stats else None,
+            "baseline_p95": round(float(stats["p95"]), 4) if stats else None,
         },
         evidence=[
-            f"Rolling baseline mean ({metric_name})={baseline:.4f}",
+            f"Rolling baseline median ({metric_name})={baseline:.4f}",
             f"Current value={current_value:.4f}",
         ],
         warnings=[f"{metric_name} significantly worse than baseline"] if worsened else [],
