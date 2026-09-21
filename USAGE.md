@@ -53,6 +53,8 @@ telemetry ingest (including the bundled SNMPv3 engine), and how to run the tests
               └──────────┘         └──────────┘          └──────────┘
 ```
 
+![Architechture Image.png](/arch-diagram.png)
+
 - **Local CLI** (`netforge ...`) runs diagnostics directly on the current
   machine. No server required.
 - **Agent** (`python -m agent`) is a small authenticated HTTP service on each
