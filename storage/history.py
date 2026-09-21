@@ -6,10 +6,13 @@ import json
 import os
 import sqlite3
 import time
+from contextlib import closing, contextmanager
 from pathlib import Path
+from typing import Iterator
 
 
 DEFAULT_DB_PATH = Path(os.environ.get("NETFORGE_HISTORY_DB", ".netforge_history.db"))
+BUSY_TIMEOUT_SECONDS = 5.0
 
 
 class HistoryStore:
@@ -18,12 +21,20 @@ class HistoryStore:
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path))
+        conn = sqlite3.connect(str(self.db_path), timeout=BUSY_TIMEOUT_SECONDS)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_SECONDS * 1000)}")
         return conn
 
+    @contextmanager
+    def _session(self) -> Iterator[sqlite3.Connection]:
+        """Transactional connection that is always closed, not just committed."""
+        with closing(self._connect()) as conn, conn:
+            yield conn
+
     def _ensure_schema(self) -> None:
-        with self._connect() as conn:
+        with self._session() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS snapshots (
@@ -49,7 +60,7 @@ class HistoryStore:
         payload: dict,
         fingerprint: str | None = None,
     ) -> None:
-        with self._connect() as conn:
+        with self._session() as conn:
             conn.execute(
                 "INSERT INTO snapshots(domain, key, fingerprint, payload, created_at) "
                 "VALUES (?, ?, ?, ?, ?)",
@@ -58,7 +69,7 @@ class HistoryStore:
             conn.commit()
 
     def latest_snapshot(self, domain: str, key: str) -> dict | None:
-        with self._connect() as conn:
+        with self._session() as conn:
             row = conn.execute(
                 "SELECT fingerprint, payload, created_at FROM snapshots "
                 "WHERE domain = ? AND key = ? ORDER BY created_at DESC LIMIT 1",
@@ -74,7 +85,7 @@ class HistoryStore:
 
     def previous_snapshot(self, domain: str, key: str) -> dict | None:
         """Return the second-most-recent snapshot (previous baseline)."""
-        with self._connect() as conn:
+        with self._session() as conn:
             rows = conn.execute(
                 "SELECT fingerprint, payload, created_at FROM snapshots "
                 "WHERE domain = ? AND key = ? ORDER BY created_at DESC LIMIT 2",
@@ -97,7 +108,7 @@ class HistoryStore:
         limit: int = 20,
     ) -> float | None:
         """Mean of a numeric metric across recent snapshots."""
-        with self._connect() as conn:
+        with self._session() as conn:
             rows = conn.execute(
                 "SELECT payload FROM snapshots "
                 "WHERE domain = ? AND key = ? ORDER BY created_at DESC LIMIT ?",

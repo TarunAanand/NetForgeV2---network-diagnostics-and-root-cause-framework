@@ -14,8 +14,14 @@ from controller.store import ControllerStore
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="NetForge controller")
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="bind address; pass 0.0.0.0 only behind TLS or a trusted network boundary",
+    )
     parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--certfile", help="PEM certificate; enables TLS for the API")
+    parser.add_argument("--keyfile", help="PEM private key (defaults to --certfile)")
     parser.add_argument(
         "--monitor",
         action="store_true",
@@ -27,7 +33,14 @@ def main() -> None:
     service = ControllerService(ControllerStore(config.database_path), AgentDispatcher(config.agent_token))
     if args.monitor:
         MonitorScheduler(service, poll_interval=args.poll_interval).start()
-    serve(service, config.controller_token, host=args.host, port=args.port)
+    serve(
+        service,
+        config.controller_token,
+        host=args.host,
+        port=args.port,
+        certfile=args.certfile,
+        keyfile=args.keyfile,
+    )
 
 
 if __name__ == "__main__":

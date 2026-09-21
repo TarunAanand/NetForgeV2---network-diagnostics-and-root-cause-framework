@@ -374,3 +374,34 @@ def test_monitor_scheduler_start_stop(tmp_path):
     assert scheduler.running
     scheduler.stop(timeout=2)
     assert not scheduler.running
+
+
+class FailingDispatcher:
+    def fanout(self, agents, request):
+        raise RuntimeError("agent unreachable")
+
+
+def test_run_due_schedules_records_failure_state(tmp_path):
+    service = _service(tmp_path, FailingDispatcher())
+    for agent_id in ("agent-db", "agent-app", "agent-mon"):
+        service.register_agent(AgentRegistration(agent_id=agent_id, url="http://127.0.0.1:8081"))
+    service.create_schedule(ScheduleEntry(service_id="db-postgres", interval_seconds=60))
+
+    now = time.time() + 1
+    assert service.run_due_schedules(now=now) == []
+    schedule = service.list_schedules()[0]
+    assert schedule.consecutive_failures == 1
+    assert "agent unreachable" in schedule.last_error
+    assert schedule.next_run_at == now + 60
+
+    assert service.run_due_schedules(now=now + 60) == []
+    assert service.list_schedules()[0].consecutive_failures == 2
+
+
+def test_advance_schedule_clears_failure_state_on_success():
+    failed = advance_schedule(
+        ScheduleEntry(service_id="db-postgres", interval_seconds=60), 100.0, "RuntimeError: boom"
+    )
+    assert failed.consecutive_failures == 1 and failed.last_error == "RuntimeError: boom"
+    recovered = advance_schedule(failed, 200.0)
+    assert recovered.consecutive_failures == 0 and recovered.last_error is None

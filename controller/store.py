@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from contextlib import closing, contextmanager
 from pathlib import Path
+from typing import Iterator
 
 from controller.models import FanoutJob, RegisteredAgent
 from controller.topology import NetworkTopology, ServiceEndpoint
@@ -20,6 +22,9 @@ from controller.monitoring import (
 from controller.correlation import HostPortBinding
 from analysis.multivantage import MultiVantageReport
 
+# SQLite is accessed from the HTTP worker threads and the monitoring loop.
+BUSY_TIMEOUT_SECONDS = 5.0
+
 
 class ControllerStore:
     def __init__(self, db_path: str | Path = ".netforge_controller.db"):
@@ -27,12 +32,21 @@ class ControllerStore:
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.db_path)
+        connection = sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_SECONDS * 1000)}")
+        connection.execute("PRAGMA foreign_keys=ON")
         return connection
 
+    @contextmanager
+    def _session(self) -> Iterator[sqlite3.Connection]:
+        """Transactional connection that is always closed, not just committed."""
+        with closing(self._connect()) as connection, connection:
+            yield connection
+
     def _ensure_schema(self) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS agents (
                     agent_id TEXT PRIMARY KEY, url TEXT NOT NULL, tags TEXT NOT NULL,
@@ -102,7 +116,7 @@ class ControllerStore:
             )
 
     def upsert_agent(self, agent: RegisteredAgent) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO agents(agent_id, url, tags, enabled, last_seen_at)
                 VALUES (?, ?, ?, ?, ?)
@@ -112,23 +126,23 @@ class ControllerStore:
             )
 
     def get_agent(self, agent_id: str) -> RegisteredAgent | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute("SELECT * FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
         if not row:
             return None
         return RegisteredAgent(agent_id=row["agent_id"], url=row["url"], topology_tags=json.loads(row["tags"]), enabled=bool(row["enabled"]), last_seen_at=row["last_seen_at"])
 
     def list_agents(self) -> list[RegisteredAgent]:
-        with self._connect() as connection:
+        with self._session() as connection:
             rows = connection.execute("SELECT * FROM agents ORDER BY agent_id").fetchall()
         return [RegisteredAgent(agent_id=row["agent_id"], url=row["url"], topology_tags=json.loads(row["tags"]), enabled=bool(row["enabled"]), last_seen_at=row["last_seen_at"]) for row in rows]
 
     def mark_seen(self, agent_id: str) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute("UPDATE agents SET last_seen_at = ? WHERE agent_id = ?", (time.time(), agent_id))
 
     def save_job(self, job: FanoutJob) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO jobs(job_id, created_at, completed_at, status, payload)
                 VALUES (?, ?, ?, ?, ?)
@@ -138,13 +152,13 @@ class ControllerStore:
             )
 
     def get_job(self, job_id: str) -> FanoutJob | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute("SELECT payload FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
         return FanoutJob.model_validate_json(row["payload"]) if row else None
 
     # --- Topology persistence (M3) ---
     def save_topology(self, topology: NetworkTopology) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO topology(name, schema_version, payload, updated_at)
                 VALUES (?, ?, ?, ?)
@@ -154,18 +168,18 @@ class ControllerStore:
             )
 
     def get_topology(self, name: str) -> NetworkTopology | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute("SELECT payload FROM topology WHERE name = ?", (name,)).fetchone()
         return NetworkTopology.model_validate_json(row["payload"]) if row else None
 
     def list_topology_names(self) -> list[str]:
-        with self._connect() as connection:
+        with self._session() as connection:
             rows = connection.execute("SELECT name FROM topology ORDER BY name").fetchall()
         return [row["name"] for row in rows]
 
     # --- Service inventory persistence (M3) ---
     def upsert_service(self, service: ServiceEndpoint) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO services(service_id, node_id, payload, updated_at)
                 VALUES (?, ?, ?, ?)
@@ -175,23 +189,23 @@ class ControllerStore:
             )
 
     def get_service(self, service_id: str) -> ServiceEndpoint | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute("SELECT payload FROM services WHERE service_id = ?", (service_id,)).fetchone()
         return ServiceEndpoint.model_validate_json(row["payload"]) if row else None
 
     def list_services(self) -> list[ServiceEndpoint]:
-        with self._connect() as connection:
+        with self._session() as connection:
             rows = connection.execute("SELECT payload FROM services ORDER BY service_id").fetchall()
         return [ServiceEndpoint.model_validate_json(row["payload"]) for row in rows]
 
     def delete_service(self, service_id: str) -> bool:
-        with self._connect() as connection:
+        with self._session() as connection:
             cursor = connection.execute("DELETE FROM services WHERE service_id = ?", (service_id,))
         return cursor.rowcount > 0
 
     # --- Multi-vantage diagnosis persistence (M4) ---
     def save_diagnosis(self, report: MultiVantageReport) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO diagnoses(diagnosis_id, target, service_id, localization,
                     status, created_at, payload)
@@ -210,14 +224,14 @@ class ControllerStore:
             )
 
     def get_diagnosis(self, diagnosis_id: str) -> MultiVantageReport | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute(
                 "SELECT payload FROM diagnoses WHERE diagnosis_id = ?", (diagnosis_id,)
             ).fetchone()
         return MultiVantageReport.model_validate_json(row["payload"]) if row else None
 
     def list_diagnoses(self, limit: int = 50) -> list[MultiVantageReport]:
-        with self._connect() as connection:
+        with self._session() as connection:
             rows = connection.execute(
                 "SELECT payload FROM diagnoses ORDER BY created_at DESC LIMIT ?", (limit,)
             ).fetchall()
@@ -225,7 +239,7 @@ class ControllerStore:
 
     # --- Schedule persistence (M5) ---
     def upsert_schedule(self, schedule: ScheduleEntry) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO schedules(schedule_id, service_id, enabled, next_run_at,
                     payload, updated_at)
@@ -244,14 +258,14 @@ class ControllerStore:
             )
 
     def get_schedule(self, schedule_id: str) -> ScheduleEntry | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute(
                 "SELECT payload FROM schedules WHERE schedule_id = ?", (schedule_id,)
             ).fetchone()
         return ScheduleEntry.model_validate_json(row["payload"]) if row else None
 
     def list_schedules(self, service_id: str | None = None) -> list[ScheduleEntry]:
-        with self._connect() as connection:
+        with self._session() as connection:
             if service_id is None:
                 rows = connection.execute(
                     "SELECT payload FROM schedules ORDER BY service_id"
@@ -264,13 +278,13 @@ class ControllerStore:
         return [ScheduleEntry.model_validate_json(row["payload"]) for row in rows]
 
     def delete_schedule(self, schedule_id: str) -> bool:
-        with self._connect() as connection:
+        with self._session() as connection:
             cursor = connection.execute("DELETE FROM schedules WHERE schedule_id = ?", (schedule_id,))
         return cursor.rowcount > 0
 
     # --- Alert rule persistence (M5) ---
     def upsert_alert_rule(self, rule: AlertRule) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO alert_rules(rule_id, service_id, severity, enabled, payload, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -288,25 +302,25 @@ class ControllerStore:
             )
 
     def get_alert_rule(self, rule_id: str) -> AlertRule | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute(
                 "SELECT payload FROM alert_rules WHERE rule_id = ?", (rule_id,)
             ).fetchone()
         return AlertRule.model_validate_json(row["payload"]) if row else None
 
     def list_alert_rules(self) -> list[AlertRule]:
-        with self._connect() as connection:
+        with self._session() as connection:
             rows = connection.execute("SELECT payload FROM alert_rules ORDER BY rule_id").fetchall()
         return [AlertRule.model_validate_json(row["payload"]) for row in rows]
 
     def delete_alert_rule(self, rule_id: str) -> bool:
-        with self._connect() as connection:
+        with self._session() as connection:
             cursor = connection.execute("DELETE FROM alert_rules WHERE rule_id = ?", (rule_id,))
         return cursor.rowcount > 0
 
     # --- Alert persistence (M5) ---
     def save_alert(self, alert: Alert) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO alerts(alert_id, service_id, rule_id, state, severity,
                     diagnosis_id, created_at, updated_at, payload)
@@ -328,7 +342,7 @@ class ControllerStore:
             )
 
     def get_alert(self, alert_id: str) -> Alert | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute(
                 "SELECT payload FROM alerts WHERE alert_id = ?", (alert_id,)
             ).fetchone()
@@ -347,14 +361,14 @@ class ControllerStore:
             params.append(state.value)
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         params.append(limit)
-        with self._connect() as connection:
+        with self._session() as connection:
             rows = connection.execute(
                 f"SELECT payload FROM alerts{where} ORDER BY created_at DESC LIMIT ?", params
             ).fetchall()
         return [Alert.model_validate_json(row["payload"]) for row in rows]
 
     def find_firing_alert(self, rule_id: str, service_id: str | None) -> Alert | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute(
                 "SELECT payload FROM alerts WHERE rule_id = ? AND service_id IS ? AND state = ? "
                 "ORDER BY created_at DESC LIMIT 1",
@@ -364,7 +378,7 @@ class ControllerStore:
 
     # --- Incident persistence (M5) ---
     def save_incident(self, incident: Incident) -> None:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute(
                 """INSERT INTO incidents(incident_id, service_id, state, severity,
                     opened_at, updated_at, payload)
@@ -384,7 +398,7 @@ class ControllerStore:
             )
 
     def get_incident(self, incident_id: str) -> Incident | None:
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute(
                 "SELECT payload FROM incidents WHERE incident_id = ?", (incident_id,)
             ).fetchone()
@@ -403,7 +417,7 @@ class ControllerStore:
             params.append(state.value)
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         params.append(limit)
-        with self._connect() as connection:
+        with self._session() as connection:
             rows = connection.execute(
                 f"SELECT payload FROM incidents{where} ORDER BY opened_at DESC LIMIT ?", params
             ).fetchall()
@@ -412,7 +426,7 @@ class ControllerStore:
     def find_active_incident(self, service_id: str | None) -> Incident | None:
         """Return the OPEN or ACKNOWLEDGED incident for a service, if any."""
         active = (IncidentState.OPEN.value, IncidentState.ACKNOWLEDGED.value)
-        with self._connect() as connection:
+        with self._session() as connection:
             row = connection.execute(
                 "SELECT payload FROM incidents WHERE service_id IS ? AND state IN (?, ?) "
                 "ORDER BY opened_at DESC LIMIT 1",
@@ -424,7 +438,7 @@ class ControllerStore:
     def replace_bindings(self, topology: str, bindings: list[HostPortBinding]) -> None:
         """Atomically replace all stored bindings for a topology."""
         now = time.time()
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute("DELETE FROM bindings WHERE topology = ?", (topology,))
             for binding in bindings:
                 binding_id = f"{topology}:{binding.host_node_id}:{binding.switch_node_id}"
@@ -448,7 +462,7 @@ class ControllerStore:
                 )
 
     def list_bindings(self, topology: str | None = None) -> list[HostPortBinding]:
-        with self._connect() as connection:
+        with self._session() as connection:
             if topology is None:
                 rows = connection.execute(
                     "SELECT payload FROM bindings ORDER BY host_node_id, switch_node_id"
@@ -462,6 +476,6 @@ class ControllerStore:
         return [HostPortBinding.model_validate_json(row["payload"]) for row in rows]
 
     def delete_bindings(self, topology: str) -> int:
-        with self._connect() as connection:
+        with self._session() as connection:
             cursor = connection.execute("DELETE FROM bindings WHERE topology = ?", (topology,))
         return cursor.rowcount

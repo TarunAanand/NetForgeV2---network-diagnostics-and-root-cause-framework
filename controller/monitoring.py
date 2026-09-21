@@ -67,6 +67,8 @@ class ScheduleEntry(BaseModel):
     created_at: float = 0.0
     last_run_at: float | None = None
     next_run_at: float | None = None
+    last_error: str | None = None
+    consecutive_failures: int = 0
 
 
 class AlertRule(BaseModel):
@@ -161,11 +163,15 @@ def is_due(schedule: ScheduleEntry, now: float) -> bool:
     return schedule.next_run_at is None or schedule.next_run_at <= now
 
 
-def advance_schedule(schedule: ScheduleEntry, now: float) -> ScheduleEntry:
-    """Return a copy with last/next run timestamps advanced from ``now``."""
+def advance_schedule(
+    schedule: ScheduleEntry, now: float, error: str | None = None
+) -> ScheduleEntry:
+    """Return a copy with last/next run timestamps and failure state advanced."""
     updated = schedule.model_copy(deep=True)
     updated.last_run_at = now
     updated.next_run_at = now + schedule.interval_seconds
+    updated.last_error = error
+    updated.consecutive_failures = schedule.consecutive_failures + 1 if error else 0
     return updated
 
 

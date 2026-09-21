@@ -393,15 +393,21 @@ export NETFORGE_ALLOWED_TARGETS="10.0.0.0/24,1.1.1.1,8.8.8.8"   # optional allow
 export NETFORGE_TAG_site="lab"                 # optional topology tags (NETFORGE_TAG_*)
 export NETFORGE_TAG_rack="r2"
 
-python -m agent --host 0.0.0.0 --port 8081
+python -m agent --host 0.0.0.0 --port 8081 --certfile /etc/netforge/agent.pem
 ```
 
 Agent options:
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `--host` | `0.0.0.0` | Bind address. Use `0.0.0.0` so other machines can reach it. |
+| `--host` | `127.0.0.1` | Bind address. Pass `0.0.0.0` so other machines can reach it — only with TLS or a trusted network boundary. |
 | `--port` | `8081` | TCP port. |
+| `--certfile` | none | PEM certificate (chain). Supplying it serves the API over TLS 1.2+. |
+| `--keyfile` | `--certfile` | PEM private key, when it is not bundled in the certificate file. |
+
+The bearer token is sent on every request, so exposing an agent beyond
+`127.0.0.1` without TLS (either `--certfile` or a TLS-terminating proxy) leaks
+the shared secret to anyone on the path.
 
 Agent environment variables:
 
@@ -424,15 +430,17 @@ export NETFORGE_CONTROLLER_TOKEN="ctrl-secret"           # clients authenticate 
 export NETFORGE_AGENT_TOKEN="agent-fixed-shared-secret"  # controller uses this to call agents
 export NETFORGE_CONTROLLER_DB=".netforge_controller.db"  # optional; default shown
 
-python -m controller --host 0.0.0.0 --port 8080
+python -m controller --host 0.0.0.0 --port 8080 --certfile /etc/netforge/controller.pem
 ```
 
 Controller options:
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `--host` | `0.0.0.0` | Bind address. |
+| `--host` | `127.0.0.1` | Bind address. Pass `0.0.0.0` only with TLS or a trusted network boundary. |
 | `--port` | `8080` | TCP port. |
+| `--certfile` | none | PEM certificate (chain). Supplying it serves the API over TLS 1.2+. |
+| `--keyfile` | `--certfile` | PEM private key, when it is not bundled in the certificate file. |
 | `--monitor` | off | Run the background scheduler that automatically fires *due* service diagnoses. |
 | `--poll-interval` | `5.0` | Scheduler poll interval in seconds (only with `--monitor`). |
 
@@ -465,12 +473,13 @@ fans out probe jobs), not necessarily from your CLI host.
 - Agents listen on **TCP 8081** by default; the controller on **TCP 8080**.
   Open these between the relevant hosts (controller → agents, CLI → controller).
 - Bind with `--host 0.0.0.0` on agents/controller so remote machines can
-  connect (binding to `127.0.0.1` only allows local access).
+  connect (the default `127.0.0.1` only allows local access), and pair it with
+  `--certfile` so the bearer tokens are not sent in cleartext.
+- Request bodies are capped at 1 MiB; larger POSTs are rejected with `413`.
 - Probes themselves use ICMP/UDP/TCP/DNS outbound from each agent; make sure
   agents are permitted to send those to the targets you diagnose.
-- All traffic is HTTP with bearer tokens (no TLS in this build). Run it on a
-  trusted network, or front the controller/agents with a TLS-terminating proxy
-  or an SSH tunnel, e.g.:
+- Authentication is a bearer token on every request. Serve it over TLS with
+  `--certfile`, front it with a TLS-terminating proxy, or tunnel it, e.g.:
   ```bash
   ssh -L 8080:localhost:8080 user@controller-host
   netforge controller --url http://127.0.0.1:8080 health

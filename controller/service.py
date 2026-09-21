@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 from uuid import uuid4
@@ -46,6 +47,8 @@ from controller.topology import (
 from controller.vantage import select_vantages
 from storage.baselines import record_and_compare
 from storage.history import HistoryStore
+
+logger = logging.getLogger("netforge.controller")
 
 
 class UnknownAgentError(ValueError):
@@ -345,6 +348,7 @@ class ControllerService:
         for schedule in self.store.list_schedules():
             if not is_due(schedule, now):
                 continue
+            error: str | None = None
             try:
                 request = DiagnosisRequest(
                     service_id=schedule.service_id,
@@ -356,12 +360,17 @@ class ControllerService:
                 report = self.diagnose_service(request)
                 self.process_diagnosis(report, now=now)
                 reports.append(report)
-            except Exception:
+            except Exception as exc:
                 # A schedule with no vantage agents / unknown service must not
-                # stall the monitoring loop; it is simply advanced and retried.
-                pass
+                # stall the monitoring loop; it is recorded, advanced, retried.
+                error = f"{type(exc).__name__}: {exc}"
+                logger.exception(
+                    "scheduled diagnosis failed (schedule=%s service=%s)",
+                    schedule.schedule_id,
+                    schedule.service_id,
+                )
             finally:
-                self.store.upsert_schedule(advance_schedule(schedule, now))
+                self.store.upsert_schedule(advance_schedule(schedule, now, error))
         return reports
 
     def process_diagnosis(

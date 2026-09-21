@@ -5,7 +5,7 @@ from __future__ import annotations
 import hmac
 import json
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
 from pydantic import ValidationError
@@ -27,6 +27,7 @@ from controller.service import (
     UnknownTopologyError,
 )
 from controller.topology import NetworkTopology, ServiceInventory
+from core.http_utils import BodyTooLarge, MalformedBody, read_json_body, serve_http
 
 
 def make_handler(service: ControllerService, bearer_token: str):
@@ -35,11 +36,13 @@ def make_handler(service: ControllerService, bearer_token: str):
             self._dispatch(None)
 
         def do_POST(self) -> None:
-            size = int(self.headers.get("Content-Length", "0"))
             try:
-                body = json.loads(self.rfile.read(size) or b"{}")
-            except json.JSONDecodeError:
-                self._reply(HTTPStatus.BAD_REQUEST, {"error": "request body must be JSON"})
+                body = read_json_body(self)
+            except BodyTooLarge as exc:
+                self._reply(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": str(exc)})
+                return
+            except MalformedBody as exc:
+                self._reply(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
                 return
             self._dispatch(body)
 
@@ -236,5 +239,12 @@ def make_handler(service: ControllerService, bearer_token: str):
     return ControllerHandler
 
 
-def serve(service: ControllerService, bearer_token: str, host: str = "0.0.0.0", port: int = 8080) -> None:
-    ThreadingHTTPServer((host, port), make_handler(service, bearer_token)).serve_forever()
+def serve(
+    service: ControllerService,
+    bearer_token: str,
+    host: str = "127.0.0.1",
+    port: int = 8080,
+    certfile: str | None = None,
+    keyfile: str | None = None,
+) -> None:
+    serve_http(make_handler(service, bearer_token), host, port, certfile=certfile, keyfile=keyfile)

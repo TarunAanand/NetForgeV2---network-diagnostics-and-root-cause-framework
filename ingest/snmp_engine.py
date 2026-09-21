@@ -40,6 +40,9 @@ _AUTH_HASHES = {
 
 AUTH_PARAM_LEN = 12
 PRIV_PARAM_LEN = 8
+# RFC 3414 3.2.7 acceptable clock skew against the authoritative engine.
+TIME_WINDOW_SECONDS = 150
+MAX_WALK_OIDS = 10_000
 MAX_MESSAGE_SIZE = 65507
 USM_SECURITY_MODEL = 3
 SNMP_VERSION_3 = 3
@@ -65,6 +68,13 @@ def _hash_name(protocol: str) -> str:
     if name is None:
         raise SnmpError(f"unsupported auth protocol: {protocol!r}")
     return name
+
+
+def peek_msg_id(data: bytes) -> int:
+    """Read msgID from the plaintext header, without keys or decryption."""
+    _tag, msg_body, _ = asn1.decode(data, 0)
+    children = asn1.decode_children(msg_body)
+    return asn1.parse_int(asn1.decode_children(children[1][1])[0][1])
 
 
 def _as_bytes(value: str | bytes) -> bytes:
@@ -337,16 +347,30 @@ class SnmpV3Engine:
             flags |= FLAG_PRIV
         return flags
 
-    def _send_recv(self, message: bytes) -> bytes:
+    def _send_recv(self, message: bytes, expected_msg_id: int) -> bytes:
+        """Send one message and return the first reply carrying ``expected_msg_id``.
+
+        UDP datagrams that do not match the outstanding request are discarded
+        rather than parsed, so an off-path injector cannot answer on behalf of
+        the device by racing the real response.
+        """
         last: Exception | None = None
         for _ in range(self.retries + 1):
             sock = self._socket_factory()
             try:
                 sock.settimeout(self.timeout)
                 sock.sendto(message, (self.host, self.port))
-                data, _addr = sock.recvfrom(65535)
-                return bytes(data)
-            except (socket.timeout, TimeoutError, OSError) as exc:  # noqa: PERF203
+                deadline = _time.monotonic() + self.timeout
+                while _time.monotonic() < deadline:
+                    data, _addr = sock.recvfrom(MAX_MESSAGE_SIZE)
+                    data = bytes(data)
+                    try:
+                        if peek_msg_id(data) == expected_msg_id:
+                            return data
+                    except (SnmpError, ValueError, IndexError):
+                        continue
+                last = SnmpError("no reply matched the outstanding msgID")
+            except (socket.timeout, TimeoutError, OSError) as exc:
                 last = exc
             finally:
                 try:
@@ -372,13 +396,15 @@ class SnmpV3Engine:
         """Learn the authoritative engineID/boots/time (RFC 3414 discovery)."""
         if self._discovered:
             return
-        pdu = asn1.enc_request_pdu(asn1.GET_REQUEST, self._next_id("_req_id"), [SYS_DESCR])
+        req_id = self._next_id("_req_id")
+        msg_id = self._next_id("_msg_id")
+        pdu = asn1.enc_request_pdu(asn1.GET_REQUEST, req_id, [SYS_DESCR])
         scoped = encode_scoped_pdu(b"", "", pdu)
         message = encode_message(
-            msg_id=self._next_id("_msg_id"), engine_id=b"", boots=0, engine_time=0,
+            msg_id=msg_id, engine_id=b"", boots=0, engine_time=0,
             username="", flags=FLAG_REPORTABLE, scoped_pdu=scoped,
         )
-        parsed = decode_message(self._send_recv(message))
+        parsed = decode_message(self._send_recv(message, msg_id))
         if not parsed.engine_id:
             raise SnmpError("engine discovery returned no authoritative engineID")
         self._engine_id = parsed.engine_id
@@ -392,18 +418,25 @@ class SnmpV3Engine:
 
     def _exchange(self, pdu_tag: int, oids: list[str]) -> ParsedMessage:
         self.discover()
-        pdu = asn1.enc_request_pdu(pdu_tag, self._next_id("_req_id"), oids)
+        req_id = self._next_id("_req_id")
+        msg_id = self._next_id("_msg_id")
+        pdu = asn1.enc_request_pdu(pdu_tag, req_id, oids)
         scoped = encode_scoped_pdu(self._context_engine_id, self.context_name, pdu)
         message = encode_message(
-            msg_id=self._next_id("_msg_id"), engine_id=self._engine_id, boots=self._boots,
+            msg_id=msg_id, engine_id=self._engine_id, boots=self._boots,
             engine_time=self._current_time(), username=self.username, flags=self._flags(),
             scoped_pdu=scoped, auth_key=self._localized_auth, auth_hash=self._auth_hash,
             priv_key=self._localized_priv,
         )
         parsed = decode_message(
-            self._send_recv(message), priv_key=self._localized_priv,
+            self._send_recv(message, msg_id), priv_key=self._localized_priv,
             auth_key=self._localized_auth, auth_hash=self._auth_hash, verify_auth=self.use_auth,
         )
+        if parsed.request_id != req_id:
+            raise SnmpError("response request-id does not match the request")
+        if parsed.engine_id and parsed.engine_id != self._engine_id:
+            raise SnmpError("response came from a different authoritative engineID")
+        self._check_time_window(parsed)
         if parsed.boots > self._boots or (parsed.boots == self._boots and parsed.engine_time > self._engine_time):
             self._boots = parsed.boots
             self._engine_time = parsed.engine_time
@@ -425,13 +458,22 @@ class SnmpV3Engine:
             raise SnmpError("empty GETNEXT response")
         return parsed.varbinds[0]
 
-    def walk(self, base_oid: str) -> dict[str, Any]:
+    def _check_time_window(self, parsed: ParsedMessage) -> None:
+        """RFC 3414 3.2.7 replay window for authenticated responses."""
+        if not self.use_auth:
+            return
+        if parsed.boots < self._boots:
+            raise SnmpError("response is outside the time window (stale engine boots)")
+        if parsed.boots == self._boots and abs(parsed.engine_time - self._current_time()) > TIME_WINDOW_SECONDS:
+            raise SnmpError("response is outside the time window (clock skew)")
+
+    def walk(self, base_oid: str, max_oids: int = MAX_WALK_OIDS) -> dict[str, Any]:
         """GETNEXT-loop a column, returning ``{index_suffix: value}``."""
         base = base_oid.strip(".")
         prefix = base + "."
         out: dict[str, Any] = {}
         current = base
-        for _ in range(1_000_000):
+        for _ in range(max_oids):
             oid, value = self.getnext(current)
             if value == "endOfMibView" or not oid.startswith(prefix) or oid == current:
                 break

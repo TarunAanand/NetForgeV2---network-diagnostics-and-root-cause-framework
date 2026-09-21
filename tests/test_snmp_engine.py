@@ -28,6 +28,7 @@ from ingest.snmp_engine import (
     FLAG_REPORTABLE,
     NO_AUTH_NO_PRIV,
     SYS_DESCR,
+    TIME_WINDOW_SECONDS,
     SnmpError,
     SnmpV3Engine,
     auth_params_offset,
@@ -322,3 +323,50 @@ def test_live_transport_rejects_des_privacy():
     )
     with pytest.raises(SnmpError):
         LiveSnmpV3Transport(creds, timeout=2.0, socket_factory=lambda: FakeSocket(FakeAgent(AUTH_PRIV)))
+
+
+class MismatchedIdSocket(FakeSocket):
+    """Answers with a valid message that carries the wrong msgID."""
+
+    def sendto(self, data, _addr):
+        parsed = decode_message(
+            data, priv_key=self.agent.priv_key, auth_key=self.agent.auth_key,
+            auth_hash=self.agent.auth_hash, verify_auth=bool(self.agent.auth_key),
+        )
+        scoped = encode_scoped_pdu(
+            self.agent.engine_id, b"", _response_pdu(parsed.request_id, [(SYS_DESCR, MIB[SYS_DESCR])])
+        )
+        self._pending = encode_message(
+            msg_id=parsed.msg_id + 1000, engine_id=self.agent.engine_id, boots=self.agent.boots,
+            engine_time=self.agent.engine_time, username=parsed.username, flags=parsed.flags,
+            scoped_pdu=scoped, auth_key=self.agent.auth_key, auth_hash=self.agent.auth_hash,
+            priv_key=self.agent.priv_key,
+        )
+        return len(data)
+
+
+def test_engine_discards_responses_with_a_foreign_msg_id():
+    agent = FakeAgent(AUTH_NO_PRIV)
+    engine = SnmpV3Engine(
+        host="10.0.0.9", port=161, username="netforge", security_level=AUTH_NO_PRIV,
+        auth_protocol="sha", auth_key=AUTH_PASS, timeout=0.2, retries=0,
+        socket_factory=lambda: MismatchedIdSocket(agent),
+    )
+    with pytest.raises(SnmpError):
+        engine.get(SYS_DESCR)
+
+
+def test_engine_rejects_a_stale_time_window():
+    agent = FakeAgent(AUTH_NO_PRIV)
+    engine = _engine(AUTH_NO_PRIV, agent)
+    engine.discover()
+    # Device rewinds far beyond the 150s replay window after discovery.
+    agent.engine_time = engine._engine_time - (TIME_WINDOW_SECONDS + 60)
+    with pytest.raises(SnmpError):
+        engine.get(SYS_DESCR)
+
+
+def test_walk_stops_at_the_oid_budget():
+    agent = FakeAgent(AUTH_NO_PRIV)
+    engine = _engine(AUTH_NO_PRIV, agent)
+    assert engine.walk(OID_IF_DESCR, max_oids=1) == {"1": "eth0"}
