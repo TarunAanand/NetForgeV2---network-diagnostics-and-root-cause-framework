@@ -15,7 +15,9 @@ class SuddenDegradationRule(DiagnosticRule):
         bad = [
             r
             for r in ctx.by_module("baseline_delta")
-            if r.metrics.get("deviated") and (r.metrics.get("ratio") or 0) >= 1.5
+            if r.metrics.get("deviated")
+            and int(r.metrics.get("sample_count") or 0) >= 5
+            and (r.metrics.get("ratio") or 0) >= 1.5
         ]
         if not bad:
             return None

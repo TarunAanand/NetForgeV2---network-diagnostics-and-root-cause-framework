@@ -31,7 +31,14 @@ def test_sudden_degradation_rule():
             severity=Severity.MEDIUM,
             summary="avg_ms spiked",
             target="1.1.1.1",
-            metrics={"deviated": True, "ratio": 3.0, "metric": "avg_ms", "current": 30, "baseline": 10},
+            metrics={
+                "deviated": True,
+                "ratio": 3.0,
+                "sample_count": 5,
+                "metric": "avg_ms",
+                "current": 30,
+                "baseline": 10,
+            },
         )
     ]
     issue = SuddenDegradationRule().evaluate(AnalysisContext(results))
