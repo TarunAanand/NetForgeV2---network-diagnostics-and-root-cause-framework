@@ -31,3 +31,15 @@ NetForge evolved from a local CLI into a multi-agent endpoint diagnosis platform
   DES privacy is intentionally not implemented. Verified against FIPS-197 AES
   vectors and an in-process fake UDP device across all three security levels;
   interoperability with a physical device is not covered by the offline suite.
+
+## Proposed next (not yet implemented)
+
+- **Diagnostic accuracy / false-positive reduction**: introduce an
+  Observation → Anomaly → Fault → Root-Cause evidence pipeline so isolated
+  intermediate-hop ICMP loss, normal ECMP/route churn, and statistically
+  insignificant latency wiggle are reported as minor unconfirmed anomalies
+  instead of `FAILURE` verdicts. Adds statistical (median/p95/MAD) baselines,
+  path loss-propagation + ICMP-suppression detection, a path-change-vs-failure
+  distinction, and a central evidence correlator. Full design in
+  [`docs/diagnostic-accuracy-plan.md`](docs/diagnostic-accuracy-plan.md).
+
