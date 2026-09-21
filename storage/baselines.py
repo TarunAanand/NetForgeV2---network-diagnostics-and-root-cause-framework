@@ -51,12 +51,14 @@ def record_and_compare(
     ratio = current_value / baseline if baseline else None
     worsened = False
     if ratio is not None:
+        abs_delta = abs(current_value - baseline)
+        abs_guard = 1.0 if "percent" in metric_name.lower() else 5.0
         if higher_is_worse:
-            worsened = ratio >= warn_ratio
+            worsened = ratio >= warn_ratio and (abs_delta >= abs_guard or current_value >= 10.0)
         else:
             worsened = ratio <= (1.0 / warn_ratio) if warn_ratio else False
 
-    if ratio is not None and higher_is_worse and ratio >= fail_ratio:
+    if ratio is not None and higher_is_worse and ratio >= fail_ratio and (abs(current_value - baseline) >= (1.0 if "percent" in metric_name.lower() else 5.0) or current_value >= 10.0):
         status, severity = DiagnosticStatus.FAILED, Severity.HIGH
     elif worsened:
         status, severity = DiagnosticStatus.DEGRADED, Severity.MEDIUM
