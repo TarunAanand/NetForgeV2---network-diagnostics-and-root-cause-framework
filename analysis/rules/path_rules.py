@@ -14,12 +14,18 @@ class PathChangeRule(DiagnosticRule):
     def evaluate(self, ctx: AnalysisContext) -> DiagnosedIssue | None:
         if not ctx.path_changed():
             return None
+
+        # A path fingerprint change by itself is not enough to claim a path fault.
+        # Require corroborating signs such as end-to-end loss or degraded reachability.
+        if ctx.is_ip_connectivity_working() and ctx.get_max_packet_loss() < 15.0:
+            return None
+
         change = ctx.first_by_module("path_change")
         evidence = list(change.evidence) if change else ["Path fingerprint differs from baseline"]
         return self.build_issue(
             title="Forwarding Path Change Detected",
             severity=Severity.MEDIUM,
-            confidence=0.88,
+            confidence=0.72,
             root_cause="The hop sequence toward the target differs from the previously stored baseline, indicating routing change, failover, or load-balancing shift.",
             correlated_evidence=evidence,
             recommendations=[
@@ -49,8 +55,11 @@ class HighHopLossRule(DiagnosticRule):
             hops = hop_metrics.metrics.get("hops", []) if hop_metrics else []
 
         bad = [h for h in hops if (h.get("loss_percent") or 0) >= 50 and h.get("address")]
-        # Ignore trailing all-star patterns alone; need at least one addressed hop with high loss
+        # Ignore trailing all-star patterns alone; need at least one addressed hop with high loss.
+        # Also require corroboration from end-to-end loss or an actual path failure before calling it a true issue.
         if not bad:
+            return None
+        if ctx.is_ip_connectivity_working() and ctx.get_max_packet_loss() < 15.0:
             return None
 
         evidence = [
@@ -60,7 +69,7 @@ class HighHopLossRule(DiagnosticRule):
         return self.build_issue(
             title="Elevated Packet Loss on Path Hops",
             severity=Severity.HIGH,
-            confidence=0.82,
+            confidence=0.68,
             root_cause="One or more intermediate hops show high probe loss, which may indicate congestion, ICMP rate-limiting, or a failing router.",
             correlated_evidence=evidence,
             recommendations=[

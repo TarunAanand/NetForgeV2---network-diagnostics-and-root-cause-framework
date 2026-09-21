@@ -4,7 +4,8 @@ import datetime
 import logging
 
 from analysis.context import AnalysisContext
-from analysis.models import DiagnosedIssue, DiagnosisReport
+from analysis.evidence import EvidenceCorrelator
+from analysis.models import ConfidenceLevel, DiagnosedIssue, DiagnosisReport, Recommendation
 from analysis.rule import DiagnosticRule
 from analysis.rules import DEFAULT_RULES
 from core.result import DiagnosticResult, DiagnosticStatus, Severity
@@ -34,6 +35,32 @@ class RuleEngine:
         ctx = AnalysisContext(results)
         raw_issues: list[DiagnosedIssue] = []
         self.rule_errors = []
+
+        anomalies = EvidenceCorrelator.correlate(results)
+        if anomalies:
+            raw_issues.extend(
+                [
+                    DiagnosedIssue(
+                        rule_id=f"EVIDENCE_ANOMALY_{idx}",
+                        title=anomaly.title,
+                        category="Evidence",
+                        severity=Severity.LOW,
+                        confidence=anomaly.confidence,
+                        confidence_level=ConfidenceLevel.from_score(anomaly.confidence),
+                        root_cause=anomaly.summary,
+                        correlated_evidence=anomaly.evidence,
+                        recommendations=[
+                            Recommendation(
+                                action="Collect a second probe window before escalating",
+                                rationale="This is a low-confidence anomaly; corroborating evidence should be collected before treating it as a fault.",
+                                priority=1,
+                            )
+                        ],
+                        suppressed_rules=[],
+                    )
+                    for idx, anomaly in enumerate(anomalies, start=1)
+                ]
+            )
 
         # 1. Run all registered rules
         for rule in self.rules:
@@ -76,7 +103,11 @@ class RuleEngine:
         failed_count = sum(1 for r in results if r.status == DiagnosticStatus.FAILED)
 
         # 5. Determine Overall Report Status and Verdict
-        if any(i.severity in {Severity.CRITICAL, Severity.HIGH} for i in active_issues):
+        confirmed_failures = [
+            i for i in active_issues
+            if i.severity in {Severity.CRITICAL, Severity.HIGH} and i.confidence >= 0.75
+        ]
+        if confirmed_failures:
             status = DiagnosticStatus.FAILED
         elif active_issues or degraded_count > 0:
             status = DiagnosticStatus.DEGRADED
